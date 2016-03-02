@@ -476,6 +476,9 @@ def classify_many():
         assert isinstance(job, ImageInferenceJob)
         inference_job = job
 
+        # retrieve inference parameters
+        model_job, paths, ground_truths = inference_job.get_parameters()
+
     if inference_job.status.is_running():
         # the inference job is still running
         if request_wants_json():
@@ -489,9 +492,6 @@ def classify_many():
                 )
     else:
         # the inference job has completed
-
-        # retrieve inference parameters
-        model_job, paths, ground_truths = inference_job.get_parameters()
 
         # retrieve inference data
         inputs, outputs, _ = inference_job.get_data()
