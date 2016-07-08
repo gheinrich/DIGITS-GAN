@@ -89,7 +89,7 @@ Parameter name        | Type         | Mandatory | Description
 model                 | nn.module    | Yes       | A nn.module container that defines the model to use.
 loss                  | nn.criterion | No        | A nn.criterion to use during training. Defaults to nn.ClassNLLCriterion.
 croplen               | number       | No        | If specified, inputs images will be cropped randomly to a square of the specified size.
-labelHook             | function     | No        | A function(input,dblabel) that returns the intended label(target) for the current batch given the provided input and label in database. By default the database label is used.
+dataHook              | function     | No        | A function(input,dblabel) that returns a pre-processed (input, label) pair to be fed to the network. By default the data from the database are used. This function receives and is expected to retun a batch of data.
 trainBatchSize        | number       | No        | If specified, sets train batch size. May be overridden by user in DIGITS UI.
 validationBatchSize   | number       | No        | If specified, sets validation batch size. May be overridden by user in DIGITS UI.
 fineTuneHook          | function     | No        | A function(net) that returns the model to be used for fine-tuning. The untuned model is passed as a function parameter.

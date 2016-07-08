@@ -54,9 +54,9 @@ autoencoder:add(nn.ReLU())
 autoencoder:add(nn.Linear(300,784))
 autoencoder:add(nn.View(1,28,28):setNumInputDims(1)) -- 784 -> 1*28*28
 
-function autoencoderLabelHook(input, dblabel)
+function autoencoderDataHook(input, dblabel)
     -- label is the input
-    return input
+    return input, input
 end
 
 -- return function that returns network definition
@@ -66,7 +66,7 @@ return function(params)
         loss = nn.MSECriterion(),
         trainBatchSize = 64,
         validationBatchSize = 100,
-        labelHook = autoencoderLabelHook,
+        dataHook = autoencoderDataHook,
     }
 end
 ```
@@ -78,9 +78,9 @@ Since this is unsupervised training, a hook is required to tell DIGITS what to c
 the input image through this function:
 
 ```lua
-function autoencoderLabelHook(input, dblabel)
+function autoencoderDataHook(input, dblabel)
     -- label is the input
-    return input
+    return input, input
 end
 ```
 

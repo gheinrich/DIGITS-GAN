@@ -558,7 +558,7 @@ local function updateConfusion(y,yt)
     end
 end
 
-local labelFunction = network.labelHook or function (input, dblabel) return dblabel end
+local dataHook = network.dataHook or function (input, dblabel) return input, dblabel end
 
 -- Optimization configuration
 logmessage.display(0,'initializing the parameters for Optimizer')
@@ -571,7 +571,7 @@ local optimizer = Optimizer{
     Parameters = {Weights, Gradients},
     HookFunction = COMPUTE_TRAIN_ACCURACY and updateConfusion or nil,
     lrPolicy = lrpolicy,
-    LabelFunction = labelFunction,
+    DataHook = dataHook,
 }
 
 -- During training, loss rate should be displayed at max 8 times or for every 5000 images, whichever lower.
@@ -650,7 +650,7 @@ end
 
 
 -- Validation function
-local function Validation(model, loss, epoch, data_loader, data_size, batch_size, confusion, label_function)
+local function Validation(model, loss, epoch, data_loader, data_size, batch_size, confusion, data_hook)
 
     -- switch model to evaluation mode
     model:evaluate()
@@ -694,7 +694,7 @@ local function Validation(model, loss, epoch, data_loader, data_size, batch_size
             end
 
             local y = model:forward(inputs)
-            local labels = label_function(inputs, targets)
+            local inputs, labels = data_hook(inputs, targets)
             local err = loss:forward(y, labels)
             loss_sum = loss_sum + err
             if confusion ~= nil then
@@ -804,7 +804,7 @@ local function Train(epoch, dataLoader)
             end
 
             if opt.validation ~= '' and current_epoch >= next_validation then
-                Validation(model, loss, current_epoch, valDataLoader, valSize, valBatchSize, valConfusion, labelFunction)
+                Validation(model, loss, current_epoch, valDataLoader, valSize, valBatchSize, valConfusion, dataHook)
 
                 next_validation = (utils.round(current_epoch/opt.interval) + 1) * opt.interval -- To find next nearest epoch value that exactly divisible by opt.interval
                 last_validation_epoch = current_epoch
@@ -837,7 +837,7 @@ logmessage.display(0,'started training the model')
 
 -- run an initial validation before the first train epoch
 if opt.validation ~= '' then
-    Validation(model, loss, 0, valDataLoader, valSize, valBatchSize, valConfusion, labelFunction)
+    Validation(model, loss, 0, valDataLoader, valSize, valBatchSize, valConfusion, dataHook)
 end
 
 while epoch<=opt.epoch do
@@ -856,7 +856,7 @@ end
 
 -- if required, perform validation at the end
 if opt.validation ~= '' and opt.epoch > last_validation_epoch then
-    Validation(model, loss, opt.epoch, valDataLoader, valSize, valBatchSize, valConfusion, labelFunction)
+    Validation(model, loss, opt.epoch, valDataLoader, valSize, valBatchSize, valConfusion, dataHook)
 end
 
 -- if required, save snapshot at the end

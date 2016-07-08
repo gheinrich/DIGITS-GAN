@@ -25,7 +25,7 @@ function Optimizer:__init(...)
     {arg='OptState', type = 'table', help='Optimization configuration', default = {}, req=false},
     {arg='HookFunction', type = 'function', help='Hook function of type fun(y,yt,err)', req = false},
     {arg='lrPolicy', type = 'table', help='learning rate policy', req = true},
-    {arg='LabelFunction', type = 'function', help = 'Label function', req = true}
+    {arg='DataHook', type = 'function', help = 'Data pre-processing function', req = true}
     )
     self.Model = args.Model
     self.Loss = args.Loss
@@ -34,7 +34,7 @@ function Optimizer:__init(...)
     self.OptState = args.OptState
     self.HookFunction = args.HookFunction
     self.lrPolicy = args.lrPolicy
-    self.LabelFunction = args.LabelFunction
+    self.DataHook = args.DataHook
 
     if self.Parameters == nil then
         self.Parameters = {}
@@ -47,15 +47,15 @@ end
 function Optimizer:optimize(x,yt)
     local f_eval = function()
         self.Model:zeroGradParameters()
-        local y = self.Model:forward(x)
-        -- get label
-        label = self.LabelFunction(x,yt)
-        local err = self.Loss:forward(y,label)
-        local dE_dy = self.Loss:backward(y,label)
+        -- get pre-processed data
+        local input, label = self.DataHook(x,yt)
+        local output = self.Model:forward(input)
+        local err = self.Loss:forward(output,label)
+        local dE_dy = self.Loss:backward(output,label)
         local value = nil
-        self.Model:backward(x, dE_dy)
+        self.Model:backward(input, dE_dy)
         if self.HookFunction then
-            value = self.HookFunction(y,label,err)
+            value = self.HookFunction(output,label,err)
         end
         return err, self.Gradients
     end
