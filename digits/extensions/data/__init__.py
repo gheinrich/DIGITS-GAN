@@ -1,6 +1,7 @@
 # Copyright (c) 2016, NVIDIA CORPORATION.  All rights reserved.
 from __future__ import absolute_import
 
+from . import acoustics
 from . import imageGradients
 from . import objectDetection
 
@@ -8,6 +9,7 @@ data_extensions = [
     # Set show=True if extension should be shown by default
     # on DIGITS home page. These defaults can be changed by
     # editing DIGITS config option 'data_extension_list'
+    {'class': acoustics.DataIngestion, 'show': True},
     {'class': imageGradients.DataIngestion, 'show': False},
     {'class': objectDetection.DataIngestion, 'show': True},
 ]
