@@ -73,6 +73,7 @@ before_install:
 install:
     - ./scripts/travis/install-caffe.sh ~/caffe
     - travis_wait ./scripts/travis/install-torch.sh ~/torch
+    - ./scripts/travis/install-tensorflow.sh
     - ./scripts/travis/install-python-requirements.sh
     - ./scripts/travis/install-digits.sh
 

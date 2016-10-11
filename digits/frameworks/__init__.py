@@ -3,6 +3,7 @@ from __future__ import absolute_import
 
 from .caffe_framework import CaffeFramework
 from .framework import Framework
+from .tensorflow_framework import TensorflowFramework
 from .torch_framework import TorchFramework
 from digits.config import config_value
 
@@ -12,6 +13,9 @@ from digits.config import config_value
 
 # torch is optional
 torch = TorchFramework() if config_value('torch')['enabled'] else None
+
+# tensorflow is optional
+tensorflow = TensorflowFramework() if config_value('tensorflow_root') else None
 
 # caffe is mandatory
 caffe = CaffeFramework()
@@ -28,6 +32,8 @@ def get_frameworks():
     frameworks = [caffe]
     if torch:
         frameworks.append(torch)
+    if tensorflow:
+        frameworks.append(tensorflow)
     return frameworks
 
 def get_framework_by_id(framework_id):

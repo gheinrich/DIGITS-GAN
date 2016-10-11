@@ -119,9 +119,15 @@ def visualize_network():
     if not framework:
         raise werkzeug.exceptions.BadRequest('framework not provided')
 
-    fw = frameworks.get_framework_by_id(framework)
-    ret = fw.get_network_visualization(flask.request.form['custom_network'])
+    dataset = scheduler.get_job(flask.request.form['dataset_id'])
 
+    fw = frameworks.get_framework_by_id(framework)
+    ret = fw.get_network_visualization(desc=flask.request.form['custom_network'],
+            dataset=dataset,
+            solver_type=flask.request.form['solver_type'],
+            use_mean=flask.request.form['use_mean'],
+            crop_size=flask.request.form['crop_size']
+            )
     return ret
 
 @blueprint.route('/visualize-lr', methods=['POST'])

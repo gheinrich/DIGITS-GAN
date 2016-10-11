@@ -100,6 +100,11 @@ return function(p)
 end
 """
 
+    TENSORFLOW_NETWORK = \
+"""
+@TODO(tzaman)
+"""
+
     @classmethod
     def model_exists(cls, job_id):
         return cls.job_exists(job_id, 'models')
@@ -125,7 +130,14 @@ end
 
     @classmethod
     def network(cls):
-        return cls.TORCH_NETWORK if cls.FRAMEWORK=='torch' else cls.CAFFE_NETWORK
+        if cls.FRAMEWORK=='torch':
+            return cls.TORCH_NETWORK
+        elif cls.FRAMEWORK=='caffe':
+            return cls.CAFFE_NETWORK
+        elif cls.FRAMEWORK=='tensorflow':
+            return cls.TENSORFLOW_NETWORK
+        else:
+            raise Exception('Unknown cls.FRAMEWORK "%s"' % cls.FRAMEWORK)
 
 class BaseViewsTestWithDataset(BaseViewsTest,
         digits.dataset.images.classification.test_views.BaseViewsTestWithDataset):
@@ -484,6 +496,14 @@ class BaseTestCreation(BaseViewsTestWithDataset):
                         model = model
                     }
                 end
+                """
+        elif self.FRAMEWORK == 'tensorflow':
+            bogus_net = """
+                model = BogusCode(0)
+                def build_model(params):
+                    return {
+                        'model' : model
+                    }
                 """
         job_id = self.create_model(json=True, network=bogus_net)
         assert self.model_wait_completion(job_id) == 'Error', 'job should have failed'
@@ -990,6 +1010,10 @@ return function(p)
     }
 end
 """
+    TENSORFLOW_NETWORK = \
+"""
+@TODO(tzaman)
+"""
 
 ################################################################################
 # Test classes
@@ -1051,8 +1075,24 @@ class TestCaffeCreatedTallMultiStepLR(BaseTestCreatedTall, test_utils.CaffeMixin
     LR_POLICY = 'multistep'
     LR_MULTISTEP_VALUES = '50,75,90'
 
+<<<<<<< 820c82f257233845f21a9ef2addd84d3c59cf006
 class TestTorchViews(BaseTestViews, test_utils.TorchMixin):
     pass
+=======
+class TestCaffeLeNet(BaseTestCreated):
+    FRAMEWORK = 'caffe'
+    IMAGE_WIDTH = 28
+    IMAGE_HEIGHT = 28
+
+    CAFFE_NETWORK=open(
+            os.path.join(
+                os.path.dirname(digits.__file__),
+                'standard-networks', 'caffe', 'lenet.prototxt')
+            ).read()
+
+class TestTorchViews(BaseTestViews):
+    FRAMEWORK = 'torch'
+>>>>>>> Basic Tensorflow Support
 
 class TestTorchCreation(BaseTestCreation, test_utils.TorchMixin):
     pass
@@ -1071,6 +1111,7 @@ class TestTorchCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.TorchMixin
 class TestTorchDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TorchMixin):
     pass
 
+<<<<<<< 820c82f257233845f21a9ef2addd84d3c59cf006
 class TestCaffeLeNet(BaseTestCreated, test_utils.CaffeMixin):
     IMAGE_WIDTH = 28
     IMAGE_HEIGHT = 28
@@ -1083,6 +1124,10 @@ class TestCaffeLeNet(BaseTestCreated, test_utils.CaffeMixin):
 
 class TestTorchCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TorchMixin):
     pass
+=======
+class TestTorchCreatedCropInForm(BaseTestCreatedCropInForm):
+    FRAMEWORK = 'torch'
+>>>>>>> Basic Tensorflow Support
 
 class TestTorchCreatedDataAug(BaseTestCreatedDataAug, test_utils.TorchMixin):
     TRAIN_EPOCHS = 2
@@ -1114,12 +1159,70 @@ class TestTorchLeNet(BaseTestCreated, test_utils.TorchMixin):
         # model tweaking
         raise unittest.SkipTest('Torch CPU inference on CuDNN-trained model not supported')
 
-
 class TestTorchLeNetHdf5Shuffle(TestTorchLeNet):
     BACKEND = 'hdf5'
     SHUFFLE = True
 
+<<<<<<< 820c82f257233845f21a9ef2addd84d3c59cf006
 class TestPythonLayer(BaseViewsTestWithDataset, test_utils.CaffeMixin):
+=======
+
+class TestTensorflowViews(BaseTestViews):
+    FRAMEWORK = 'tensorflow'
+
+class TestTensorflowCreation(BaseTestCreation):
+    FRAMEWORK = 'tensorflow'
+
+class TestTensorflowCreatedUnencodedShuffle(BaseTestCreated):
+    FRAMEWORK = 'tensorflow'
+    ENCODING = 'none'
+    SHUFFLE = True
+
+class TestTensorflowCreatedHdf5(BaseTestCreated):
+    FRAMEWORK = 'tensorflow'
+    BACKEND = 'hdf5'
+
+class TestTensorflowCreatedTallHdf5Shuffle(BaseTestCreatedTall):
+    FRAMEWORK = 'tensorflow'
+    BACKEND = 'hdf5'
+    SHUFFLE = True
+
+class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions):
+    FRAMEWORK = 'tensorflow'
+
+class TestTensorflowCreatedCropInForm(BaseTestCreatedCropInForm):
+    FRAMEWORK = 'tensorflow'
+
+class TestTensorflowCreatedCropInNetwork(BaseTestCreatedCropInNetwork):
+    FRAMEWORK = 'tensorflow'
+
+class TestTensorflowCreatedWideMultiStepLR(BaseTestCreatedWide):
+    FRAMEWORK = 'tensorflow'
+    LR_POLICY = 'multistep'
+    LR_MULTISTEP_VALUES = '50,75,90'
+
+class TestTensorflowLeNet(BaseTestCreated):
+    FRAMEWORK = 'tensorflow'
+    IMAGE_WIDTH = 28
+    IMAGE_HEIGHT = 28
+    TRAIN_EPOCHS = 20
+    # need more aggressive learning rate
+    # on such a small dataset
+    LR_POLICY = 'fixed'
+    LEARNING_RATE = 0.1
+
+    # standard lenet model will adjust to color
+    # or grayscale images
+    TORCH_NETWORK=open(
+            os.path.join(
+                os.path.dirname(digits.__file__),
+                'standard-networks', 'tensorflow', 'lenet_slim.py') # @TODO(tzaman); probably use lenet.py here
+            ).read()
+
+
+class TestPythonLayer(BaseViewsTestWithDataset):
+    FRAMEWORK = 'caffe'
+>>>>>>> Basic Tensorflow Support
     CAFFE_NETWORK = """\
 layer {
     name: "hidden"

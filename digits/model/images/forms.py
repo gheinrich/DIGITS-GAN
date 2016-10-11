@@ -26,7 +26,7 @@ class ImageModelForm(ModelForm):
                 ('image', 'Image'),
                 ('pixel', 'Pixel'),
                 ],
-            default='image',
+            default='pixel', # Pixel mean subtraction will generally give significantly better results than 'image'
             tooltip = "Subtract the mean file or mean pixel for this dataset from each image."
             )
 

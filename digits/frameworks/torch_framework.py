@@ -32,6 +32,7 @@ class TorchFramework(Framework):
 
     # whether this framework can shuffle data during training
     CAN_SHUFFLE_DATA = True
+    SUPPORTS_PYTHON_LAYERS_FILE = False
 
     SUPPORTED_SOLVER_TYPES = ['SGD', 'NESTEROV', 'ADAGRAD',
                               'RMSPROP', 'ADADELTA', 'ADAM']
@@ -114,10 +115,11 @@ class TorchFramework(Framework):
         return True
 
     @override
-    def get_network_visualization(self, desc):
+    def get_network_visualization(self, **kwargs):
         """
         return visualization of network
         """
+        desc = kwargs['desc']
         # save network description to temporary file
         temp_network_handle, temp_network_path = tempfile.mkstemp(suffix='.lua')
         os.write(temp_network_handle, desc)
@@ -179,8 +181,3 @@ class TorchFramework(Framework):
                 return output
         finally:
             os.remove(temp_network_path)
-
-
-
-
-

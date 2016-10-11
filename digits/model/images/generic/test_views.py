@@ -37,8 +37,6 @@ import digits.webapp
 # Must import after importing digit.config
 import caffe_pb2
 
-import numpy as np
-
 # May be too short on a slow system
 TIMEOUT_DATASET = 45
 TIMEOUT_MODEL = 60
