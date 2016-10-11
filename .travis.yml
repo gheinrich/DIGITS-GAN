@@ -11,6 +11,7 @@ env:
         - DIGITS_TEST_FRAMEWORK=caffe CAFFE_FORK=NVIDIA
         - DIGITS_TEST_FRAMEWORK=caffe CAFFE_FORK=BVLC
         - DIGITS_TEST_FRAMEWORK=torch
+        - DIGITS_TEST_FRAMEWORK=tensorflow
         - DIGITS_TEST_FRAMEWORK=none
         - DEB_BUILD=true
 

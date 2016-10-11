@@ -17,8 +17,8 @@ function set_exe {
 }
 
 # Some hacking necessary to respect virtualenv installations
-set_exe PYTHON_EXE "/opt/local/bin/python2"
-set_exe NOSE_EXE nosetests-2.7 
+set_exe PYTHON_EXE python2
+set_exe NOSE_EXE nosetests
 
-DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:$CUDA_HOME/lib DIGITS_MODE_TEST=1 $PYTHON_EXE $NOSE_EXE \
+DIGITS_MODE_TEST=1 $PYTHON_EXE $NOSE_EXE \
     --no-path-adjustment $@
