@@ -15,7 +15,7 @@ from digits.config import config_value
 torch = TorchFramework() if config_value('torch')['enabled'] else None
 
 # tensorflow is optional
-tensorflow = TensorflowFramework() if config_value('tensorflow_root') else None
+tensorflow = TensorflowFramework() if config_value('tensorflow')['enabled'] else None
 
 # caffe is mandatory
 caffe = CaffeFramework()

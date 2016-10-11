@@ -3,4 +3,4 @@
 
 set -e
 
-python -m digits $@
+/opt/local/bin/python2.7 -m digits $@

@@ -29,6 +29,26 @@ PICKLE_VERSION = 1
 TENSORFLOW_MODEL_FILE = 'network.py'
 TENSORFLOW_SNAPSHOT_PREFIX = 'snapshot'
 
+def subprocess_visible_devices(gpus):
+    """
+    Calculates CUDA_VISIBLE_DEVICES for a subprocess
+    """
+    if not isinstance(gpus, list):
+        raise ValueError('gpus should be a list')
+    gpus = [int(g) for g in gpus]
+
+    old_cvd = os.environ.get('CUDA_VISIBLE_DEVICES', None)
+    if old_cvd is None:
+        real_gpus = gpus
+    else:
+        map_visible_to_real = {}
+        for visible, real in enumerate(old_cvd.split(',')):
+            map_visible_to_real[visible] = int(real)
+        real_gpus = []
+        for visible_gpu in gpus:
+            real_gpus.append(map_visible_to_real[visible_gpu])
+    return ','.join(str(g) for g in real_gpus)
+
 @subclass
 class TensorflowTrainTask(TrainTask):
     """
@@ -111,7 +131,7 @@ class TensorflowTrainTask(TrainTask):
     @override
     def task_arguments(self, resources, env):
 
-        args = ['/opt/local/bin/python2.7', #@TODO(tzaman) unset this
+        args = [config_value('tensorflow')['executable'],
                 os.path.join(os.path.dirname(os.path.dirname(digits.__file__)),'tools','tensorflow','main.py'),
                 '--network=%s' % self.model_file,
                 '--epoch=%d' % int(self.train_epochs),
@@ -209,11 +229,11 @@ class TensorflowTrainTask(TrainTask):
             identifiers = []
             for identifier, value in resources['gpus']:
                 identifiers.append(identifier)
-            # make all selected GPUs visible to the Tensorflow process.
-            # don't make other GPUs visible though since Tensorflow will load
+            # make all selected GPUs visible to the Torch 'th' process.
+            # don't make other GPUs visible though since Torch will load
             # CUDA libraries and allocate memory on all visible GPUs by
             # default.
-            env['CUDA_VISIBLE_DEVICES'] = ','.join(identifiers)
+            env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices(identifiers)
             # switch to GPU mode
             args.append('--type=gpu')
         else:
@@ -451,7 +471,7 @@ class TensorflowTrainTask(TrainTask):
 
         file_to_load = self.get_snapshot(snapshot_epoch)
 
-        args = ['/opt/local/bin/python2.7', #@TODO(tzaman) unset this
+        args = [config_value('tensorflow')['executable'],
                 os.path.join(os.path.dirname(os.path.dirname(digits.__file__)),'tools','tensorflow','main.py'),
                 '--inference_db=%s' % temp_image_path,
                 '--network=%s' % self.model_file,
@@ -497,9 +517,9 @@ class TensorflowTrainTask(TrainTask):
         if gpu is not None:
             args.append('--type=gpu')
             # make only the selected GPU visible
-            env['CUDA_VISIBLE_DEVICES'] = "%d" % gpu
+            env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices([gpu])
         else:
-            args.append('--type=float')
+            args.append('--type=cpu')
 
         p = subprocess.Popen(args,
                 stdout=subprocess.PIPE,
@@ -749,7 +769,7 @@ class TensorflowTrainTask(TrainTask):
 
             file_to_load = self.get_snapshot(snapshot_epoch)
 
-            args = ['/opt/local/bin/python2.7', #@TODO(tzaman) unset this
+            args = [config_value('tensorflow')['executable'],
                     os.path.join(os.path.dirname(os.path.dirname(digits.__file__)),'tools','tensorflow','main.py'),
                     '--testMany=1',
                     '--allPredictions=1',   #all predictions are grabbed and formatted as required by DIGITS
@@ -786,9 +806,9 @@ class TensorflowTrainTask(TrainTask):
             if gpu is not None:
                 args.append('--type=gpu')
                 # make only the selected GPU visible
-                env['CUDA_VISIBLE_DEVICES'] = "%d" % gpu
+                env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices([gpu])
             else:
-                args.append('--type=float')
+                args.append('--type=cpu')
 
             unrecognized_output = []
             predictions = []

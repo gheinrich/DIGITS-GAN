@@ -8,6 +8,7 @@ from . import caffe
 from . import gpu_list
 from . import jobs_dir
 from . import log_file
+from . import tensorflow
 from . import torch
 from . import server_name
 
