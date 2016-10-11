@@ -126,7 +126,7 @@ class TensorflowFramework(Framework):
         try: # do this in a try..finally clause to make sure we delete the temp file
             # build command line
             args = [config_value('tensorflow')['executable'],
-                    os.path.join(os.path.dirname(os.path.dirname(digits.__file__)),'tools','tensorflow','main.py'),
+                    os.path.join(os.path.dirname(digits.__file__),'tools','tensorflow','main.py'),
                     '--network=%s' % os.path.basename(temp_network_path),
                     '--networkDirectory=%s' % os.path.dirname(temp_network_path),
                     '--visualizeModelPath=%s' % temp_graphdef_path,
