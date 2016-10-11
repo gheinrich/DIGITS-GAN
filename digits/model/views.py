@@ -119,14 +119,16 @@ def visualize_network():
     if not framework:
         raise werkzeug.exceptions.BadRequest('framework not provided')
 
-    dataset = scheduler.get_job(flask.request.form['dataset_id'])
+    dataset = None
+    if 'dataset_id' in flask.request.form:
+        dataset = scheduler.get_job(flask.request.form['dataset_id'])
 
     fw = frameworks.get_framework_by_id(framework)
     ret = fw.get_network_visualization(desc=flask.request.form['custom_network'],
             dataset=dataset,
-            solver_type=flask.request.form['solver_type'],
-            use_mean=flask.request.form['use_mean'],
-            crop_size=flask.request.form['crop_size']
+            solver_type=flask.request.form['solver_type'] if 'solver_type' in flask.request.form else None,
+            use_mean=flask.request.form['use_mean'] if 'use_mean' in flask.request.form else None,
+            crop_size=flask.request.form['solver_type'] if 'solver_type' in flask.request.form else None,
             )
     return ret
 
