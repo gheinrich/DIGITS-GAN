@@ -1,12 +1,7 @@
 # Tensorflow Triangle binary segmentation model using TensorFlow-Slim
 
 def build_model(params):
-
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
-
-    # Center mean
-    _x = _x - 0.5
-
     with slim.arg_scope([slim.conv2d, slim.conv2d_transpose, slim.fully_connected],  
                         weights_initializer=tf.contrib.layers.xavier_initializer(),
                         weights_regularizer=slim.l2_regularizer(0.0005) ):
@@ -17,13 +12,9 @@ def build_model(params):
 
     def loss(y):
         y = tf.reshape(y, shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
-        y = y - 0.5 # Center mean
-
-        # Concatenate the input, label and model side by side (sbs) for a fancy image summary
-        sbs = tf.concat(2, [_x, y, model])
-        # The below image summary makes it very easy to review the result
-        tf.image_summary('sbs', sbs, max_images=3, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-
+        # For a fancy tensorboard summary: put the input, label and model side by side (sbs) for a fancy image summary:
+        # sbs = tf.concat(2, [_x, y, model])
+        # tf.image_summary('sbs', sbs, max_images=3, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
         return digits.mse_loss(model, y)
 
     return {

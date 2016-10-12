@@ -3,7 +3,7 @@ def build_model(params):
 
     is_training = tf.placeholder(tf.bool, name='dropout_toggle')
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
-    with slim.arg_scope([slim.conv2d, slim.fully_connected, slim.max_pool2d], 
+    with slim.arg_scope([slim.conv2d, slim.fully_connected], 
                         weights_initializer=tf.contrib.layers.xavier_initializer(),
                         weights_regularizer=slim.l2_regularizer(0.0005) ):
         model = slim.conv2d(_x, 20, [5, 5], padding='VALID', scope='conv1')

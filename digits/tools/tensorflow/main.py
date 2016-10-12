@@ -209,14 +209,17 @@ def Inference(sess, model):
     """
     Runs one inference (evaluation) epoch (all the files in the loader)
     """
-    has_logsoftmax = True # @TODO(tzaman): check if there is a logsoftmax in the model
-    if has_logsoftmax:
-        model.model = tf.exp(model.model)
+    #has_logsoftmax = True # @TODO(tzaman): check if there is a logsoftmax in the model
+    #if has_logsoftmax:
+    #    model.model = tf.exp(model.model)
     try:
         while not model.queue_coord.should_stop():
             keys, preds  = sess.run([model.dataloader.batch_k, model.model], feed_dict=model.feed_dict)
+            # @TODO(tzaman): error on no output?
             for i in range(len(keys)):
-                logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[i].tolist()))
+                for j in range(len(preds)):
+                    # We're allowing multiple predictions per image here. DIGITS doesnt support that iirc
+                    logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[int(i*preds_per_key + j)].tolist()))
     except tf.errors.OutOfRangeError:
         print('Done: tf.errors.OutOfRangeError')    
 

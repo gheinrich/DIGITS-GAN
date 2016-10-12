@@ -181,6 +181,8 @@ class LoaderFactory(object):
         self.batch_k = None
         self.stage = None
         self._seed = None
+        self.unencoded_data_format = 'whc'
+        self.unencoded_channel_scheme = 'rgb'
 
         self.summaries = None
         pass
@@ -258,7 +260,16 @@ class LoaderFactory(object):
                     exit(-1)
             else:
                 data = tf.decode_raw(data, self.image_dtype, name='raw_decoder')
-                data = tf.reshape(data, shape) # Dynamic reshaping
+
+                # if data is in CHW, set the shape and convert to HWC
+                if self.unencoded_data_format == 'chw':
+                    data = tf.reshape(data, [shape[2],shape[0],shape[1]])
+                    data = digits.chw_to_hwc(data)
+                else: #'hwc'
+                    data = tf.reshape(data, shape)
+
+                if (self.channels == 3) and self.unencoded_channel_scheme == 'bgr':
+                    data = digits.bgr_to_rgb(data)
 
             # Convert to float
             data = tf.image.convert_image_dtype(data, tf.float32) # Converts to [0:1) range
@@ -301,7 +312,7 @@ class LoaderFactory(object):
         else:
             single_key, single_data, single_data_shape, single_label, single_label_shape = self.get_single_data(key_queue)
         
-        single_data_shape = tf.reshape(single_data_shape, [3]) # Shape the shape
+        single_data_shape = tf.reshape(single_data_shape, [3]) # Shape the shape to have three dimensions
         single_data = self.reshape_decode(single_data, single_data_shape)
 
         if self.labels_db_path: # Using a seperate label db; label can be anything
@@ -333,7 +344,7 @@ class LoaderFactory(object):
         max_queue_capacity = min(math.ceil(self.total * MIN_FRACTION_OF_EXAMPLES_IN_QUEUE), MAX_ABSOLUTE_EXAMPLES_IN_QUEUE)
         
         single_batch = [single_key, single_data]
-        if single_label is not None: # @TODO(tzaman): declare clear 'TRAIN' and 'VAL' and 'INF' descriptors somewhere
+        if single_label is not None:
             single_batch.append(single_label)
 
         batch = tf.train.batch(
@@ -356,18 +367,14 @@ class LoaderFactory(object):
 
 
 class LmdbLoader(LoaderFactory):
+    """ Loads files from lmbd files as used in Caffe
+    """
     def __init__(self):
         pass
 
     def initialize(self):
-        """Sets up the environment for the current data loader
-
-        Args:
-            self:
-
-        Returns:
-            Nothing.
-        """
+        self.unencoded_data_format = 'chw'
+        self.unencoded_channel_scheme = 'bgr'
         # Set up the data loader
         self.lmdb_env = lmdb.open(self.db_path, readonly=True, lock=False)
 
@@ -495,7 +502,6 @@ class FileListLoader(LoaderFactory):
         pass
 
     def initialize(self):
-
         self.float_data = False
         self.data_encoded = True
 
