@@ -525,10 +525,9 @@ class FileListLoader(LoaderFactory):
         self.total = len(self.keys)
 
         # Check first file for statistics
-        with Image.open(first_file_path) as im:
-            self.width, self.height = im.size
-            self.channels =  1 # FIXME - FIXME - @TODO(tzaman)?
-
+        im = Image.open(first_file_path)
+        self.width, self.height = im.size
+        self.channels =  1 if im.mode == 'L' else 3 # @TODO(tzaman): allow more channels
 
         self.data_mime = magic.from_file(first_file_path, mime=True)
 

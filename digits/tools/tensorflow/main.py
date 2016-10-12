@@ -214,7 +214,7 @@ def Inference(sess, model):
         model.model = tf.exp(model.model)
     try:
         while not model.queue_coord.should_stop():
-            keys, preds  = sess.run([model.dataloader.batch[0], model.model], feed_dict=model.feed_dict)
+            keys, preds  = sess.run([model.dataloader.batch_k, model.model], feed_dict=model.feed_dict)
             for i in range(len(keys)):
                 logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[i].tolist()))
     except tf.errors.OutOfRangeError:

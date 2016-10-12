@@ -229,8 +229,8 @@ class TensorflowTrainTask(TrainTask):
             identifiers = []
             for identifier, value in resources['gpus']:
                 identifiers.append(identifier)
-            # make all selected GPUs visible to the Torch 'th' process.
-            # don't make other GPUs visible though since Torch will load
+            # make all selected GPUs visible to the process.
+            # don't make other GPUs visible though since the process will load
             # CUDA libraries and allocate memory on all visible GPUs by
             # default.
             env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices(identifiers)

@@ -131,7 +131,7 @@ class TensorflowFramework(Framework):
                     '--networkDirectory=%s' % os.path.dirname(temp_network_path),
                     '--visualizeModelPath=%s' % temp_graphdef_path,
                     '--optimization=%s' % solver_type,
-                    # @TODO(tzaman): try to include some GPU information to see device placement and such
+                    '--type=gpu', # Lets just always assume GPU for visualization
                     ]
 
             if crop_size:
