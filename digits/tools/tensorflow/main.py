@@ -28,7 +28,7 @@ import os
 import re
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
-from tensorflow.python.client import timeline
+from tensorflow.python.client import timeline, device_lib
 from tensorflow.python.ops import template
 from tensorflow.python.lib.io import file_io
 from tensorflow.core.framework import summary_pb2
@@ -88,8 +88,8 @@ tf.app.flags.DEFINE_string('lr_stepvalues', '', """Required to calculate stepsiz
 # 'tf_summaries_dir' default is '' which defaults to the cwd (jobs dir)
 tf.app.flags.DEFINE_string('tf_summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
 tf.app.flags.DEFINE_boolean('tf_serving_export', False, """Flag for exporting an Tensorflow Serving model""")
-tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
-tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 100, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+tf.app.flags.DEFINE_boolean('log_device_placement', True, """Whether to log device placement.""")
+tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
@@ -252,8 +252,9 @@ def loadLabels(filename):
 
 def main(_):
 
-    # Always set the cpu as the default device, the gpu should be set explicitly.
-    with tf.Graph().as_default(), tf.device('/cpu:0'):
+    # Always set a default device. Soms specific operations will later override this device.
+    default_device = '/gpu:0' if FLAGS.type == 'gpu' else '/cpu:0'
+    with tf.Graph().as_default(), tf.device(default_device):
 
         # Set Tensorboard log directory
         if FLAGS.tf_summaries_dir:
@@ -270,9 +271,6 @@ def main(_):
         batch_size_train = FLAGS.batchSize
         batch_size_val = FLAGS.batchSize
         logging.info("Train batch size is %s and validation batch size is %s", batch_size_train, batch_size_val)
-
-        # @TODO(tzaman): how to handle this correctly with tf? 
-        ngpus = 1 # @FIXME(tzaman)
 
         # This variable keeps track of next epoch, when to perform validation.
         next_validation = FLAGS.interval
@@ -471,7 +469,7 @@ def main(_):
                         last_validation_epoch = current_epoch
 
                     # Saving Snapshot
-                    if current_epoch >= next_snapshot_save:
+                    if FLAGS.snapshotInterval and current_epoch >= next_snapshot_save:
                         save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.tf_serving_export)
 
                         # To find next nearest epoch value that exactly divisible by FLAGS.snapshotInterval

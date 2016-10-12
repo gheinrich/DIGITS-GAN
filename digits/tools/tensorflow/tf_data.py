@@ -30,7 +30,7 @@ import utils as digits
 
 # Constants
 MIN_FRACTION_OF_EXAMPLES_IN_QUEUE = 0.4
-MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 50000 # Useful for large datasets
+MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 4096 # Maybe set this to 10x batch size?
 NUM_THREADS_DATA_LOADER = 4
 LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 

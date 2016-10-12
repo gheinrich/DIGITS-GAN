@@ -23,6 +23,7 @@ import utils as digits
 
 # Constants
 MOVING_AVERAGE_DECAY = 0.9999 # The decay for the moving average of the summaries
+OUTPUT_HISTOGRAM_SUMMARIES = False # Very heavy for the CPU
 
 def lazy_property(function):
     # From https://danijar.com/structuring-your-tensorflow-models/
@@ -34,6 +35,15 @@ def lazy_property(function):
             setattr(self, attribute, function(self))
         return getattr(self, attribute)
     return decorator
+
+def get_available_gpus():
+    """
+    Queries the CUDA GPU devices visible to Tensorflow.
+    Returns:
+        A list with tf-style gpu strings (f.e. ['/gpu:0', '/gpu:1'])
+    """
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']
 
 class Model(object):
     """
@@ -204,12 +214,6 @@ class Model(object):
     @lazy_property
     def train(self):
 
-
-
-
-
-
-
         # Generate moving averages of all losses and associated summaries.
         #loss_averages_op = add_loss_summaries(loss_op_train, '_train')
 
@@ -219,11 +223,6 @@ class Model(object):
         grads = self.optimizer.compute_gradients(self.loss)
         apply_gradient_op = self.optimizer.apply_gradients(grads, global_step=self.global_step)
 
-        # Add histograms for gradients.
-        for grad, var in grads:
-            if grad is not None:
-                self._summaries.append(tf.histogram_summary(var.op.name + '/gradients', grad))
-
         # Track the moving averages of all trainable variables.
         variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, self.global_step, name='avg')
         variables_averages_op = variable_averages.apply(tf.trainable_variables())
@@ -231,10 +230,15 @@ class Model(object):
         with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
             train_op = tf.no_op(name='train')
 
-        ## TensorBoard
-        # Add histograms for trainable variables.
-        for var in tf.trainable_variables():
-            self._summaries.append(tf.histogram_summary(var.op.name, var))
+        # TensorBoard
+        if OUTPUT_HISTOGRAM_SUMMARIES:
+            # Add histograms for gradients.
+            for grad, var in grads:
+                if grad is not None:
+                    self._summaries.append(tf.histogram_summary(var.op.name + '/gradients', grad))  
+            # Add histograms for trainable variables.
+            for var in tf.trainable_variables():
+                self._summaries.append(tf.histogram_summary(var.op.name, var))
 
         return train_op
 

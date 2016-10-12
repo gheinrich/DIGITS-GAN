@@ -107,8 +107,8 @@ class TensorflowFramework(Framework):
         """
         desc = kwargs['desc']
         dataset = kwargs['dataset']
-        solver_type = kwargs['solver_type'].lower()
-        use_mean = kwargs['use_mean'].lower()
+        solver_type = kwargs['solver_type'].lower() if kwargs['solver_type'] else None
+        use_mean = kwargs['use_mean']
         crop_size = kwargs['crop_size']
         if dataset is None:
             raise NetworkVisualizationError('Make sure a dataset is selected to visualize this network.')

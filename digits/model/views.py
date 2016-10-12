@@ -128,7 +128,7 @@ def visualize_network():
             dataset=dataset,
             solver_type=flask.request.form['solver_type'] if 'solver_type' in flask.request.form else None,
             use_mean=flask.request.form['use_mean'] if 'use_mean' in flask.request.form else None,
-            crop_size=flask.request.form['solver_type'] if 'solver_type' in flask.request.form else None,
+            crop_size=flask.request.form['crop_size'] if 'crop_size' in flask.request.form else None,
             )
     return ret
 

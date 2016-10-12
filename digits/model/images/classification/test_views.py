@@ -99,6 +99,22 @@ return function(p)
     }
 end
 """
+    TENSORFLOW_NETWORK = \
+"""
+def build_model(params):
+    # Implementation with native tf
+    ninputs = params['input_shape'][0] * params['input_shape'][1] * params['input_shape'][2]
+    W = tf.get_variable('W', [ninputs, params['nclasses']], initializer=tf.constant_initializer(0.0))
+    b = tf.get_variable('b', [params['nclasses']], initializer=tf.constant_initializer(0.0)),
+    model = tf.reshape(params['x'], shape=[-1, ninputs])
+    model = tf.add(tf.matmul(model, W), b)
+    def loss(y):
+        return digits.classification_loss(model, y)
+    return {
+        'model' : model,
+        'loss' : loss
+        }
+"""
 
     @classmethod
     def model_exists(cls, job_id):
@@ -125,7 +141,14 @@ end
 
     @classmethod
     def network(cls):
-        return cls.TORCH_NETWORK if cls.FRAMEWORK=='torch' else cls.CAFFE_NETWORK
+        if cls.FRAMEWORK=='torch':
+            return cls.TORCH_NETWORK
+        elif cls.FRAMEWORK=='caffe':
+            return cls.CAFFE_NETWORK
+        elif cls.FRAMEWORK=='tensorflow':
+            return cls.TENSORFLOW_NETWORK
+        else:
+            raise ValueError('Unknown framework %s' % cls.FRAMEWORK)
 
 class BaseViewsTestWithDataset(BaseViewsTest,
         digits.dataset.images.classification.test_views.BaseViewsTestWithDataset):
@@ -275,7 +298,12 @@ class BaseTestViews(BaseViewsTest):
 
     def test_visualize_network(self):
         rv = self.app.post('/models/visualize-network?framework='+self.FRAMEWORK,
-                data = {'custom_network': self.network()}
+                data = {'custom_network': self.network(),
+                        'dataset_id': None,
+                        'solver_type': 'sgd',
+                        'use_mean': None,
+                        'crop_size': None,
+                    }
                 )
         s = BeautifulSoup(rv.data, 'html.parser')
         if rv.status_code != 200:
@@ -484,6 +512,20 @@ class BaseTestCreation(BaseViewsTestWithDataset):
                         model = model
                     }
                 end
+                """
+        elif self.FRAMEWORK == 'tensorflow':
+            bogus_net = """
+                def build_model(params):
+                    model = BogusCode(0)
+
+                    def loss(y):
+                        return BogusCode(0)
+
+                    return {
+                        'model' : model,
+                        'loss' : loss,
+                        }
+
                 """
         job_id = self.create_model(json=True, network=bogus_net)
         assert self.model_wait_completion(job_id) == 'Error', 'job should have failed'
@@ -1051,6 +1093,16 @@ class TestCaffeCreatedTallMultiStepLR(BaseTestCreatedTall, test_utils.CaffeMixin
     LR_POLICY = 'multistep'
     LR_MULTISTEP_VALUES = '50,75,90'
 
+class TestCaffeLeNet(BaseTestCreated, test_utils.CaffeMixin):
+    IMAGE_WIDTH = 28
+    IMAGE_HEIGHT = 28
+
+    CAFFE_NETWORK=open(
+            os.path.join(
+                os.path.dirname(digits.__file__),
+                'standard-networks', 'caffe', 'lenet.prototxt')
+            ).read()
+
 class TestTorchViews(BaseTestViews, test_utils.TorchMixin):
     pass
 
@@ -1070,16 +1122,6 @@ class TestTorchCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.TorchMixin
 
 class TestTorchDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TorchMixin):
     pass
-
-class TestCaffeLeNet(BaseTestCreated, test_utils.CaffeMixin):
-    IMAGE_WIDTH = 28
-    IMAGE_HEIGHT = 28
-
-    CAFFE_NETWORK=open(
-            os.path.join(
-                os.path.dirname(digits.__file__),
-                'standard-networks', 'caffe', 'lenet.prototxt')
-            ).read()
 
 class TestTorchCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TorchMixin):
     pass
@@ -1224,3 +1266,57 @@ class TestSweepCreation(BaseViewsTestWithDataset, test_utils.CaffeMixin):
             assert self.model_wait_completion(job_id) == 'Done', 'create failed'
             assert self.delete_model(job_id) == 200, 'delete failed'
             assert not self.model_exists(job_id), 'model exists after delete'
+
+
+## Tensorflow
+
+class TestTensorflowViews(BaseTestViews, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreation(BaseTestCreation, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreatedUnencodedShuffle(BaseTestCreated, test_utils.TensorflowMixin):
+    ENCODING = 'none'
+    SHUFFLE = True
+
+#class TestTensorflowCreatedHdf5(BaseTestCreated, test_utils.TensorflowMixin):
+#    BACKEND = 'hdf5'
+#
+#class TestTensorflowCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.TensorflowMixin):
+#    BACKEND = 'hdf5'
+#    SHUFFLE = True
+#
+class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TensorflowMixin):
+    pass
+
+#class TestTensorflowCreatedDataAug(BaseTestCreatedDataAug, test_utils.TensorflowMixin):
+#    TRAIN_EPOCHS = 2
+
+class TestTensorflowCreatedWideMultiStepLR(BaseTestCreatedWide, test_utils.TensorflowMixin):
+    LR_POLICY = 'multistep'
+    LR_MULTISTEP_VALUES = '50,75,90'
+
+class TestTensorflowLeNet(BaseTestCreated, test_utils.TensorflowMixin):
+    IMAGE_WIDTH = 28
+    IMAGE_HEIGHT = 28
+    TRAIN_EPOCHS = 20
+
+    # standard lenet model will adjust to color
+    # or grayscale images
+    TENSORFLOW_NETWORK=open(
+            os.path.join(
+                os.path.dirname(digits.__file__),
+                'standard-networks', 'tensorflow', 'lenet.py')
+            ).read()
+
+    def test_inference_while_training(self):
+        # override parent method to skip this test as the reference
+        # model for LeNet uses CuDNN by default and it difficult to
+        # perform inference on a CuDNN-trained model without non-trivial
+        # model tweaking
+        # @TODO(tzaman): check this for tf
+        raise unittest.SkipTest('Tensorflow CPU inference on CuDNN-trained model not supported')
