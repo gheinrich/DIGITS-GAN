@@ -166,17 +166,14 @@ class TensorflowFramework(Framework):
                         close_fds=True,
                         )
 
-            regex = re.compile('\x1b\[[0-9;]*m', re.UNICODE) #TODO: need to include regular expression for MAC color codes
-
-            desc = []
-            stdout_log = []
+            stdout_log = ''
             while p.poll() is None:
                 for line in utils.nonblocking_readlines(p.stdout):
                     timestamp, level, message = TensorflowTrainTask.preprocess_output_tensorflow(line.strip())
                     if not message and line:
-                        stdout_log.append(line)
-            if p.returncode: # dirty exit
-                raise NetworkVisualizationError(str(p.returncode).join(stdout_log))
+                        stdout_log += line
+            if p.returncode:
+                raise NetworkVisualizationError(stdout_log)
             else: # Success!
                 return repr(str(open(temp_graphdef_path).read()))
         finally:

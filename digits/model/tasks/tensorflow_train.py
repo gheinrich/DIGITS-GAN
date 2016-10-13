@@ -247,8 +247,6 @@ class TensorflowTrainTask(TrainTask):
 
     @override
     def process_output(self, line):
-        regex = re.compile('\x1b\[[0-9;]*m', re.UNICODE)   #TODO: need to include regular expression for MAC color codes
-        line=regex.sub('', line).strip()
         self.tensorflow_log.write('%s\n' % line)
         self.tensorflow_log.flush()
 
@@ -505,7 +503,6 @@ class TensorflowTrainTask(TrainTask):
         # Convert them all to strings
         args = [str(x) for x in args]
 
-        regex = re.compile('\x1b\[[0-9;]*m', re.UNICODE)   #TODO: need to include regular expression for MAC color codes
         self.logger.info('%s classify one task started.' % self.get_framework_id())
 
         unrecognized_output = []
@@ -537,9 +534,6 @@ class TensorflowTrainTask(TrainTask):
                         raise digits.inference.errors.InferenceError('%s classify one task got aborted. error code - %d' % (self.get_framework_id(), p.returncode))
 
                     if line is not None:
-                        # Remove color codes and whitespace
-                        line=regex.sub('', line).strip()
-                    if line:
                         if not self.process_test_output(line, predictions, 'one'):
                             self.logger.warning('%s classify one task unrecognized input: %s' % (self.get_framework_id(), line.strip()))
                             unrecognized_output.append(line)
@@ -799,7 +793,6 @@ class TensorflowTrainTask(TrainTask):
             # Convert them all to strings
             args = [str(x) for x in args]
 
-            regex = re.compile('\x1b\[[0-9;]*m', re.UNICODE)   #TODO: need to include regular expression for MAC color codes
             self.logger.info('%s classify many task started.' % self.name())
 
             env = os.environ.copy()
@@ -828,11 +821,6 @@ class TensorflowTrainTask(TrainTask):
                             raise digits.inference.errors.InferenceError('%s classify many task got aborted. error code - %d' % (self.get_framework_id(), p.returncode))
 
                         if line is not None:
-                            # @TODO(tzaman): review below
-                            # Remove whitespace and color codes. color codes are appended to beginning and end of line by torch binary i.e., 'th'. Check the below link for more information
-                            # https://groups.google.com/forum/#!searchin/torch7/color$20codes/torch7/8O_0lSgSzuA/Ih6wYg9fgcwJ
-                            line=regex.sub('', line).strip()
-                        if line:
                             if not self.process_test_output(line, predictions, 'many'):
                                 self.logger.warning('%s classify many task unrecognized input: %s' % (self.get_framework_id(), line.strip()))
                                 unrecognized_output.append(line)
