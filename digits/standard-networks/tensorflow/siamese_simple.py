@@ -2,10 +2,8 @@ def build_model(params):
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
     #tf.image_summary('input', _x, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
 
-    # Split out the color channels
-    _, model_g, model_b = tf.split(3, 3, _x, name='split_channels')
-    #tf.image_summary('g', model_g, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-    #tf.image_summary('b', model_b, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    # Split out the channel in two
+    lhs, rhs = tf.split(0, 2, _x, name='split_batch')
 
     with slim.arg_scope([slim.conv2d, slim.fully_connected], 
             weights_initializer=tf.contrib.layers.xavier_initializer(),
@@ -21,18 +19,20 @@ def build_model(params):
                 net = slim.fully_connected(net, 2, activation_fn=None, scope='fc2')
                 return net
 
-            model_g = make_tower(model_g)
-            model_g = tf.reshape(model_g, shape=[-1, 2])
+            lhs = make_tower(lhs)
+            lhs = tf.reshape(lhs, shape=[-1, 2])
             scope.reuse_variables()
-            model_b = make_tower(model_b)
-            model_b = tf.reshape(model_b, shape=[-1, 2])
+            rhs = make_tower(rhs)
+            rhs = tf.reshape(rhs, shape=[-1, 2])
 
     def loss(y):
         y = tf.reshape(y, shape=[-1])
+        ylhs, yrhs = tf.split(0, 2, y, name='split_label')
+        y = tf.equal(ylhs, yrhs)
         y = tf.to_float(y)
-        return digits.constrastive_loss(model_g, model_b, y)
+        return digits.constrastive_loss(lhs, rhs, y)
 
     return {
-        'model' : model_g,
+        'model' : tf.concat(0, [lhs, rhs]),
         'loss' : loss,
         }

@@ -603,13 +603,10 @@ def handle_error(e):
         return flask.jsonify({'error': details}), status_code
     else:
         escape_message = True
+        message = message.replace('\\n', '<br />')
         if isinstance(e, digits.frameworks.errors.NetworkVisualizationError):
-            # @TODO(tzaman) - probably need to throw around the whole error handling
-            # here to make it better formatted and more meaningful - hack for now:
-            message = message.replace('\\n', '<br />')
-            escape_message = False
-        if escape_message:
-            message = flask.escape(message)
+            trace = message
+            message = ''
         return flask.render_template('error.html',
                 title       = error_type,
                 message     = message,
