@@ -217,12 +217,11 @@ def Inference(sess, model):
             keys, preds  = sess.run([model.dataloader.batch_k, model.model], feed_dict=model.feed_dict)
             # @TODO(tzaman): error on no output?
             for i in range(len(keys)):
-                for j in range(len(preds)):
-                    # We're allowing multiple predictions per image here. DIGITS doesnt support that iirc
-                    logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[int(i*preds_per_key + j)].tolist()))
+                #    for j in range(len(preds)):
+                # We're allowing multiple predictions per image here. DIGITS doesnt support that iirc
+                logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[i].tolist()))
     except tf.errors.OutOfRangeError:
         print('Done: tf.errors.OutOfRangeError')    
-
 
 def Validation(sess, model, writer, current_epoch):
     """

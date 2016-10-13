@@ -30,17 +30,14 @@ def classification_loss(pred, y):
 def mse_loss(lhs, rhs):
     return tf.reduce_mean(tf.square(lhs - rhs))
 
-#def constrastive_loss(lhs, rhs, label, margin=1.0):
-#    # From http://stackoverflow.com/questions/38260113/implementing-contrastive-loss-and-triplet-loss-in-tensorflow
-#    d = tf.reduce_sum(tf.square(lhs - rhs), 1)
-#    loss = label * tf.square(tf.maximum(0., margin - tf.sqrt(d))) + (1 - label) * d
-#    return (0.5 * tf.reduce_mean(loss))
+def constrastive_loss(lhs, rhs, y, margin=1.0):
+    """ Contrastive loss confirming to the Caffe definition
+    """
+    d = tf.reduce_sum(tf.square(tf.sub(lhs,rhs)), 1)
+    d_sqrt = tf.sqrt(d)
+    loss = (y * d) + ((1 - y) * tf.square(tf.maximum(margin - d_sqrt, 0)))
+    return tf.reduce_mean(loss) # Note: constant component removed (/2)
 
-def constrastive_loss(d, y, margin=1.0):
-    # From https://github.com/jeromeyoon/Tensorflow-siamese/blob/master/main.py
-    tmp= y * tf.square(d)
-    tmp2 = (1-y) *tf.square(tf.maximum((margin - d),0))
-    return tf.reduce_mean(tmp + tmp2) * 0.5
 
 def classification_accuracy(pred, y):
     """

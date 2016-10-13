@@ -22,7 +22,7 @@ import utils as digits
 
 
 # Constants
-MOVING_AVERAGE_DECAY = 0.9999 # The decay for the moving average of the summaries
+#MOVING_AVERAGE_DECAY = 0.9999 # The decay for the moving average of the summaries
 OUTPUT_HISTOGRAM_SUMMARIES = False # Very heavy for the CPU
 
 def lazy_property(function):
@@ -224,10 +224,10 @@ class Model(object):
         apply_gradient_op = self.optimizer.apply_gradients(grads, global_step=self.global_step)
 
         # Track the moving averages of all trainable variables.
-        variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, self.global_step, name='avg')
-        variables_averages_op = variable_averages.apply(tf.trainable_variables())
+        #variable_averages = tf.train.ExponentialMovingAverage(MOVING_AVERAGE_DECAY, self.global_step, name='avg')
+        #variables_averages_op = variable_averages.apply(tf.trainable_variables())
 
-        with tf.control_dependencies([apply_gradient_op, variables_averages_op]):
+        with tf.control_dependencies([apply_gradient_op]):#, variables_averages_op]):
             train_op = tf.no_op(name='train')
 
         # TensorBoard
