@@ -10,12 +10,10 @@ import argparse
 import caffe
 import csv
 from collections import defaultdict
-import h5py
 import lmdb
 import numpy as np
 import os
 import PIL.Image
-import random
 import re
 import shutil
 import sys

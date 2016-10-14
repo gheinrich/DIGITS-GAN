@@ -382,10 +382,11 @@ $('#db-tabs a[href="#db-{{ form.method.data }}"]').tab('show');
                 {{ form.backend(class='form-control') }}
             </div>
             <div id="backend-hdf5-warning" class="alert alert-warning" style="display:none;">
-                <b>NOTE:</b> HDF5 is not fully supported by Caffe or by DIGITS
+                <b>NOTE:</b> HDF5 is currently only supported for classification.
                 <ul>
-                    <li>The standard networks will need some minor customizations before use (change <i>Data</i> layers to <i>HDF5Data</i> layers)</li>
-                    <li><i>HDF5Data</i> layers do not support mean subtraction</li>
+                    <li>For the Caffe data layers, (change <i>Data</i> layers to <i>HDF5Data</i> layers)</li>
+                    <li>The Caffe <i>HDF5Data</i> layer does not support mean subtraction</li>
+                    <li>Database exploration in the DIGITS UI is not supported.</li>
                 </ul>
             </div>
             <div class="form-group{{mark_errors([form.compression])}}">

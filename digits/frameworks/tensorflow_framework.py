@@ -131,7 +131,7 @@ class TensorflowFramework(Framework):
                     '--networkDirectory=%s' % os.path.dirname(temp_network_path),
                     '--visualizeModelPath=%s' % temp_graphdef_path,
                     '--optimization=%s' % solver_type,
-                    '--type=cpu', # Force a cpu visualisation because two tf instances pointing to the same gpu will make things freeze
+                    '--type=cpu', # Force a cpu visualization because two tf instances pointing to the same gpu will make things freeze
                     ]
 
             if crop_size:

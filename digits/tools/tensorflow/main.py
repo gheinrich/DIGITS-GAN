@@ -88,7 +88,7 @@ tf.app.flags.DEFINE_string('lr_stepvalues', '', """Required to calculate stepsiz
 # 'tf_summaries_dir' default is '' which defaults to the cwd (jobs dir)
 tf.app.flags.DEFINE_string('tf_summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
 tf.app.flags.DEFINE_boolean('tf_serving_export', False, """Flag for exporting an Tensorflow Serving model""")
-tf.app.flags.DEFINE_boolean('log_device_placement', True, """Whether to log device placement.""")
+tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
 def save_timeline_trace(run_metadata, save_dir, step):
@@ -354,8 +354,6 @@ def main(_):
                 input_shape = inf_model.dataloader.get_shape()
             inf_model.create_model_from_template(network_template)
             inf_model.initialize_graph()
-
-
 
         # Start running operations on the Graph. allow_soft_placement must be set to
         # True to build towers on GPU, as some of the ops do not have GPU

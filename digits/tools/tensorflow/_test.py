@@ -5,11 +5,12 @@
 import os
 import subprocess
 
-#dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20160715-230349-5f23" #CIFAR100
-#dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20160715-230434-21a4" #CIFAR10
-dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20160615-215643-75fd" #MNIST
-#dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/gradient_regression" #Gradient Regression
-#dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20161002-185828-d0cd" #Triangle-segmentation
+#dataset_dir = "/Users/tzaman/jobs/20160715-230349-5f23" #CIFAR100
+#dataset_dir = "/Users/tzaman/jobs/20160715-230434-21a4" #CIFAR10
+dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST
+#dataset_dir = "/Users/tzaman/jobs/gradient_regression" #Gradient Regression
+#dataset_dir = "/Users/tzaman/jobs/20161002-185828-d0cd" #Triangle-segmentation
+#dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5
 
 # TIM'S OVERRIDES:
 args = ""
@@ -17,14 +18,14 @@ args = ""
 if 1:
 	args = args + (
 	" --labels=" + dataset_dir + "/labels.txt"
-	" --networkDirectory=../../digits/standard-networks/tensorflow"
+	" --networkDirectory=../../standard-networks/tensorflow"
 	#" --network=gradient.py"
 	#" --network=lenet.py"
 	" --network=lenet_slim.py"
 	#" --network=rnn_mnist.py"
 	#" --network=autoencoder.py"
 	#" --network=binary_segmentation.py"
-	" --mean=" + dataset_dir + "/mean.jpg"
+	" --mean=" + dataset_dir + "/mean.binaryproto"
 	" --subtractMean=pixel"
 	#" --subtractMean=image"
 	#" --croplen=28"
@@ -40,8 +41,10 @@ if 1:
 	#" --optimization=adam"
 	#" --weights=/Users/tzaman/Desktop/result/loadme2"
 	" --batchSize=128"
-	" --log_runtime_stats_per_step=100"
+	" --log_runtime_stats_per_step=0"
+	" --type=cpu"
 	)
+
 
 if 0: #LR and Optimizer
 	args = args + (

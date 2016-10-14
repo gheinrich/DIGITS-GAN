@@ -7,7 +7,6 @@ import json
 
 import os
 import shutil
-import h5py
 import numpy as np
 
 from digits import dataset, extensions, model, utils

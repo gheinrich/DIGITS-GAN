@@ -174,7 +174,7 @@ class TorchFramework(Framework):
                 # we did not find a network description
                 raise NetworkVisualizationError(''.join(unrecognized_output))
             else:
-                output = flask.Markup('<pre>')
+                output = flask.Markup('<pre align="left">')
                 for line in desc:
                     output += flask.Markup.escape(line)
                 output += flask.Markup('</pre>')

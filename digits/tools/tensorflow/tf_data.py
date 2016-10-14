@@ -16,7 +16,6 @@ from __future__ import print_function
 
 from PIL import Image
 import logging
-import lmdb
 import magic
 import math
 import numpy as np
@@ -296,14 +295,25 @@ class LoaderFactory(object):
         #
         #with tf.container('queue-container'): 
         
-        key_queue = tf.train.string_input_producer(
-            self.keys,
-            num_epochs=self.num_epochs,
-            capacity=self.total,
-            shuffle=self.shuffle,
-            seed=self._seed,
-            name='input_producer'
-            )
+        if self.keys is None:
+            # Not using keys, but a range
+            key_queue = tf.train.range_input_producer(
+                self.total,
+                num_epochs=self.num_epochs,
+                capacity=self.total,
+                shuffle=self.shuffle,
+                seed=self._seed,
+                name='input_producer'
+                )
+        elif type(self.keys[0]) is str:
+            key_queue = tf.train.string_input_producer(
+                self.keys,
+                num_epochs=self.num_epochs,
+                capacity=self.total,
+                shuffle=self.shuffle,
+                seed=self._seed,
+                name='input_producer'
+                )
 
         single_label = None
         single_label_shape = None
@@ -373,6 +383,12 @@ class LmdbLoader(LoaderFactory):
         pass
 
     def initialize(self):
+        try:
+            import lmdb
+        except ImportError:
+            logging.error("Attempt to create LMDB Loader but lmdb is not installed.")
+            exit(-1)
+
         self.unencoded_data_format = 'chw'
         self.unencoded_channel_scheme = 'bgr'
         # Set up the data loader
@@ -410,10 +426,6 @@ class LmdbLoader(LoaderFactory):
         """Returns the type of the data, in tf format.
             It takes in account byte-data or floating point data.
             It also takes in account the possible seperate lmdb label db.
-
-        Args:
-            self:
-
         Returns:
             The tensorflow-datatype of the data
         """
@@ -423,10 +435,6 @@ class LmdbLoader(LoaderFactory):
         """Returns the type of the label, in tf format.
             It takes in account byte-data or floating point data.
             It also takes in account the possible seperate lmdb label db.
-
-        Args:
-            self:
-
         Returns:
             The tensorflow-datatype of the label
         """
@@ -490,7 +498,6 @@ class LmdbLoader(LoaderFactory):
         return key, d, ds, l, ls
 
     def __del__(self):
-        # Destructor
         self.lmdb_env.close()
 
 
@@ -564,5 +571,125 @@ class Hdf5Loader(LoaderFactory):
         pass
 
     def initialize(self):
-        logging.error("NotImplementedError: Hdf5.")
+        try:
+            import h5py
+        except ImportError:
+            logging.error("Attempt to create HDF5 Loader but h5py is not installed.")
+            exit(-1)
+
+        #self.unencoded_data_format = 'chw'
+        #self.unencoded_channel_scheme = 'bgr'
+        self.data_encoded = False
+        self.float_data = True # Always stored as float32
+        self.keys = None # Not using keys
+
+        self.h5dbs = []
+        self.h5dbs_endrange = []
+        list_db_files = self.db_path + '/list.txt'
+        self.total = 0
+        with open(list_db_files) as f:
+            for line in f:
+                # Account for the strange relative path format in list.txt
+                fn = self.db_path + '/' + os.path.basename(line.strip())
+                db = h5py.File(fn)
+                self.check_hdf5_db(db)
+                self.total += len(db['data'])
+                self.h5dbs_endrange.append(self.total)
+                self.h5dbs.append(db)
+
+        # Read the first file to get shape information
+        self.channels, self.height, self.width = self.h5dbs[0]['data'][0].shape
+
+    def check_hdf5_db(self, db):
+        # Make sure we have data and labels in the db
+        if not "data" in db or not "label" in db:
+            logging.error("The HDF5 loader requires both a 'data' and 'label' group in the HDF5 root.")
+            exit(-1)
+
+        if len(db['data']) != len(db['label']):
+            logging.error("HDF5 data and label amount mismatch (%d/%d)" % (len(db['data']), len(db['label'])))
+            exit(-1)
+
+        if len(db['data']) == 0:
+            logging.error("HDF5 database contains no data.")
+            exit(-1)
+
+    def get_tf_data_type(self):
+        """Returns the type of the data, in tf format.
+            It takes in account byte-data or floating point data.
+            It also takes in account the possible seperate lmdb label db.
+        Returns:
+            The tensorflow-datatype of the data
+        """
+        return tf.float32 if self.float_data else tf.string
+
+    def get_tf_label_type(self):
+        """Returns the type of the label, in tf format.
+            It takes in account byte-data or floating point data.
+            It also takes in account the possible seperate lmdb label db.
+        Returns:
+            The tensorflow-datatype of the label
+        """
+        if self.labels_db_path:
+            return self.labels_db.get_tf_data_type()
+        else:
+            # No seperate db, return scalar label
+            return tf.int64
+
+    def get_data_and_shape(self, sample_key):
+        """ Gets a sample across multiple hdf5 databases
+        """
+        prev_end_range = 0
+        for i, end_range in enumerate(self.h5dbs_endrange):
+            if sample_key < end_range:
+                key_within_db = sample_key-prev_end_range
+                data = self.h5dbs[i]['data'][key_within_db]
+                # Convert from CHW to HWC
+                data = data.transpose((1, 2, 0)).astype(np.float32)/255.
+                shape = np.asarray(data.shape, dtype=np.int32)
+                label = self.h5dbs[i]['label'][key_within_db].astype(np.int64)
+                return data, shape, label
+
+            prev_end_range = end_range
+        # @TODO(tzaman) out of range error
+        logging.error("Out of range")
         exit(-1)
+
+    def generate_data_op(self):
+        """Generates and returns an op that fetches a single sample of data.
+        Returns:
+            A python function that is inserted as an op
+        """
+        def get_data_op(key):
+            """Fetches a sample of data and its label from db. If a seperate label database
+               exists, it will also load it from the seperate db inside this function. This is
+               done the data and its label are loaded at the same time, avoiding multiple queues
+               and race conditions.
+            Args:
+                key: integer key id
+            Returns:
+                single_data: One sample of training data
+                single_data_shape: The shape of the preceeding training data
+                single_label: The label that is the reference value describing the data
+                single_label_shape: The shape of the preceeding label data
+            """
+            single_data, single_data_shape, single_label = self.get_data_and_shape(key)
+            single_label_shape = np.array([], dtype=np.int32)
+            if self.labels_db_path:
+                single_label, single_label_shape, _ = self.labels_db.get_data_and_shape(key)
+            return single_data, [single_data_shape], single_label, [single_label_shape]
+        return get_data_op
+
+    def get_single_data(self, key_queue):
+        """
+        Returns:
+            key, single_data, single_data_shape, single_label, single_label_shape
+        """
+        key = key_queue.dequeue() #Operation that dequeues one key and returns a string with the key
+        py_func_return_type = [self.get_tf_data_type(), tf.int32, self.get_tf_label_type(), tf.int32]
+        d, ds, l, ls = tf.py_func(self.generate_data_op(), [key], py_func_return_type, name='data_reader')
+        return key, d, ds, l, ls
+
+    def __del__(self):
+        for db in self.h5dbs:
+            db.close()
