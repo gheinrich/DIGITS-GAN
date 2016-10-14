@@ -6,11 +6,13 @@ import os
 import subprocess
 
 #dataset_dir = "/Users/tzaman/jobs/20160715-230349-5f23" #CIFAR100
-#dataset_dir = "/Users/tzaman/jobs/20160715-230434-21a4" #CIFAR10
-dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST
+dataset_dir = "/Users/tzaman/jobs/20160715-230434-21a4" #CIFAR10 LMDB
+#dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST LMDB
 #dataset_dir = "/Users/tzaman/jobs/gradient_regression" #Gradient Regression
 #dataset_dir = "/Users/tzaman/jobs/20161002-185828-d0cd" #Triangle-segmentation
-#dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5
+#dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5 Uncompressed
+#dataset_dir = "/Users/tzaman/jobs/20161014-112335-a0f1" #MNIST HDF5 GZIP
+#dataset_dir = "/Users/tzaman/jobs/20161014-151839-2c91" #CIFAR10 HDF5 32x32
 
 # TIM'S OVERRIDES:
 args = ""
@@ -20,8 +22,9 @@ if 1:
 	" --labels=" + dataset_dir + "/labels.txt"
 	" --networkDirectory=../../standard-networks/tensorflow"
 	#" --network=gradient.py"
-	#" --network=lenet.py"
-	" --network=lenet_slim.py"
+	" --network=lenet.py"
+	#" --network=siamese_simple.py"
+	#" --network=lenet_slim.py"
 	#" --network=rnn_mnist.py"
 	#" --network=autoencoder.py"
 	#" --network=binary_segmentation.py"
@@ -34,7 +37,7 @@ if 1:
 	" --summaries_dir=/tmp/tb/"
 	" --save=/Users/tzaman/Desktop/result"
 	" --seed=1"
-	" --epoch=4"
+	" --epoch=1"
 	" --interval=1"
 	" --tf_summaries_dir=/Users/tzaman/Desktop/tb/"
 	" --shuffle=true"
@@ -45,6 +48,11 @@ if 1:
 	" --type=cpu"
 	)
 
+if 1: #Load weights for plain lenet
+	args = args + (
+		" --weights=/Users/tzaman/jobs/20161014-173513-623a/snapshot_1.0_Model/Model.ckpt"
+		" --croplen=28"
+		)
 
 if 0: #LR and Optimizer
 	args = args + (

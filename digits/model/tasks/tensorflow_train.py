@@ -295,10 +295,8 @@ class TensorflowTrainTask(TrainTask):
 
         # snapshot saved
         if self.saving_snapshot:
-            if not message.startswith('Snapshot saved'):
-                self.logger.warning('Tensorflow output format seems to have changed. Expected "Snapshot saved..." after "Snapshotting to..."')
-            else:
-                self.logger.info('Snapshot saved.')  # to print file name here, you can use "message"
+            if message.startswith('Snapshot saved'):
+                self.logger.info(message)
             self.detect_snapshots()
             self.send_snapshot_update()
             self.saving_snapshot = False
@@ -401,13 +399,10 @@ class TensorflowTrainTask(TrainTask):
     @override
     def detect_snapshots(self):
         self.snapshots = []
-
-        snapshot_dir = os.path.join(self.job_dir, os.path.dirname(self.snapshot_prefix))
         snapshots = []
-
-        for filename in os.listdir(snapshot_dir):
+        for filename in os.listdir(self.job_dir):
             # find models
-            match = re.match(r'%s_(\d+)\.?(\d*)(_Model)' % os.path.basename(self.snapshot_prefix), filename)
+            match = re.match(r'%s_(\d+)\.?(\d*)\.ckpt' % self.snapshot_prefix, filename)
             if match:
                 epoch = 0
                 if match.group(2) == '':
@@ -415,13 +410,11 @@ class TensorflowTrainTask(TrainTask):
                 else:
                     epoch = float(match.group(1) + '.' + match.group(2))
                 snapshots.append( (
-                        os.path.join(snapshot_dir, filename),
+                        os.path.join(self.job_dir, filename),
                         epoch
                         )
                     )
-
         self.snapshots = sorted(snapshots, key=lambda tup: tup[1])
-
         return len(self.snapshots) > 0
 
     @override

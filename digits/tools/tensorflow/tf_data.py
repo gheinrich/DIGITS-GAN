@@ -29,7 +29,7 @@ import utils as digits
 
 # Constants
 MIN_FRACTION_OF_EXAMPLES_IN_QUEUE = 0.4
-MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 4096 # Maybe set this to 10x batch size?
+MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 4096 # The queue size cannot exceed this number
 NUM_THREADS_DATA_LOADER = 4
 LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 
@@ -362,6 +362,7 @@ class LoaderFactory(object):
                 batch_size=self.batch_size,
                 dynamic_pad=True, # Allows us to not supply fixed shape a priori
                 enqueue_many=False, # Each tensor is a single example
+                #shapes=[[],[28,28,1],[]], # Only makes sense is dynamic_pad=False
                 num_threads=NUM_THREADS_DATA_LOADER,
                 capacity=max_queue_capacity, # Max amount that will be loaded and queued
                 allow_smaller_final_batch=True, # Happens if total%batch_size!=0
@@ -577,8 +578,6 @@ class Hdf5Loader(LoaderFactory):
             logging.error("Attempt to create HDF5 Loader but h5py is not installed.")
             exit(-1)
 
-        #self.unencoded_data_format = 'chw'
-        #self.unencoded_channel_scheme = 'bgr'
         self.data_encoded = False
         self.float_data = True # Always stored as float32
         self.keys = None # Not using keys
@@ -649,10 +648,9 @@ class Hdf5Loader(LoaderFactory):
                 shape = np.asarray(data.shape, dtype=np.int32)
                 label = self.h5dbs[i]['label'][key_within_db].astype(np.int64)
                 return data, shape, label
-
             prev_end_range = end_range
-        # @TODO(tzaman) out of range error
-        logging.error("Out of range")
+
+        logging.error("Out of range") # @TODO(tzaman) out of range error
         exit(-1)
 
     def generate_data_op(self):

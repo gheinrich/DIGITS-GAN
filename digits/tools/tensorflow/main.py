@@ -85,11 +85,11 @@ tf.app.flags.DEFINE_float('lr_power', float('Inf'), """Required to calculate lea
 tf.app.flags.DEFINE_string('lr_stepvalues', '', """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid). For the 'multistep' lr_policy you can input multiple values seperated by commas""")
 
 # Tensorflow-unique arguments for DIGITS
-# 'tf_summaries_dir' default is '' which defaults to the cwd (jobs dir)
-tf.app.flags.DEFINE_string('tf_summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
-tf.app.flags.DEFINE_boolean('tf_serving_export', False, """Flag for exporting an Tensorflow Serving model""")
+tf.app.flags.DEFINE_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
+tf.app.flags.DEFINE_boolean('serving_export', False, """Flag for exporting an Tensorflow Serving model""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+tf.app.flags.DEFINE_string('save_vars', 'all', """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
 
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
@@ -164,28 +164,33 @@ def dump(obj):
     for attr in dir(obj):
         print("obj.%s = %s" % (attr, getattr(obj, attr)))
 
-def load_snapshot(sess, saver, weight_path):
+def load_snapshot(sess, weight_path, var_candidates):
     logging.info("Loading weights from pretrained model - %s ", weight_path )
     ckpt = tf.train.get_checkpoint_state(weight_path)
-    if ckpt and ckpt.model_checkpoint_path:
-        saver.restore(sess, ckpt.model_checkpoint_path)
-    else:
-        logging.error("Weight file for pretrained model not found: %s", weight_path  )
-        exit(-1)
+    reader = tf.train.NewCheckpointReader(weight_path)
+    var_map = reader.get_variable_to_shape_map()
+
+    # Only obtain all the variables that are [in the current graph] AND [in the checkpoint]
+    vars_restore = []
+    for vt in var_candidates:
+        for vm in var_map.keys():
+            if vt.name.split(':')[0] == vm:
+                vars_restore.append(vt)
+                logging.info('restoring %s -> %s' % (vm, vt.name))
+
+    logging.info('Restoring %s variable ops.' % len(vars_restore))
+    tf.train.Saver(vars_restore, max_to_keep=0, sharded=FLAGS.serving_export).restore(sess, weight_path)
+    logging.info('Variables restored.')
+
 
 def save_snapshot(sess, saver, save_dir, snapshot_prefix, epoch, for_serving=False):
     """
-    Saves a snapshot of the current session, saving all variables and the graph itself.
-    The files are put in its own folder, so one can easily point to a folder when
-    the weights get loaded in (this is how tf loads weights - by pointing to a folder)
+    Saves a snapshot of the current session, saving all variables previously defined
+    in the ctor of the saver. Also saves the flow of the graph itself (only once).
     """
-    snapshot_name = snapshot_prefix + '_' + str(epoch) + '_Model'
-    snapshot_dir = os.path.join(save_dir, snapshot_name)
-    if not os.path.exists(snapshot_dir):
-        os.makedirs(snapshot_dir)
-    snapshot_file = os.path.join(snapshot_dir, 'Model.ckpt')
+    snapshot_file = os.path.join(save_dir, snapshot_prefix + '_' + str(epoch) + '.ckpt')
 
-    logging.info('Snapshotting to %s', snapshot_dir)
+    logging.info('Snapshotting to %s', snapshot_file)
     saver.save(sess, snapshot_file)
     logging.info('Snapshot saved.')
 
@@ -259,9 +264,9 @@ def main(_):
     with tf.Graph().as_default(), tf.device(default_device):
 
         # Set Tensorboard log directory
-        if FLAGS.tf_summaries_dir:
+        if FLAGS.summaries_dir:
             # The following gives a nice but unrobust timestamp
-            FLAGS.tf_summaries_dir = os.path.join(FLAGS.tf_summaries_dir, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+            FLAGS.summaries_dir = os.path.join(FLAGS.summaries_dir, datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
 
         if not FLAGS.train_db and not FLAGS.validation_db and not FLAGS.inference_db and not FLAGS.visualizeModelPath:
             logging.error("At least one of the following file sources should be specified: train_db, validation_db or inference_db")
@@ -367,8 +372,14 @@ def main(_):
             exit(0)
 
         # Saver creation.
-        # Will only save sharded if we want to use the model for serving
-        saver = tf.train.Saver(tf.all_variables(), max_to_keep=0, sharded=FLAGS.tf_serving_export)
+        if FLAGS.save_vars == 'all':
+            vars_to_save = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+        elif FLAGS.save_vars == 'trainable':
+            vars_to_save = tf.all_variables()
+        else:
+            logging.error('Unknown save_var flag (%s)' % FLAGS.save_vars)
+            exit(-1)
+        saver = tf.train.Saver(vars_to_save, max_to_keep=0, sharded=FLAGS.serving_export)
 
         # Initialize variables
         init_op = tf.group(tf.initialize_all_variables(), tf.initialize_local_variables())
@@ -376,10 +387,10 @@ def main(_):
 
         # If weights option is set, preload weights from existing models appropriately
         if FLAGS.weights:
-            load_snapshot(sess, saver, FLAGS.weights)
+            load_snapshot(sess, FLAGS.weights, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
 
         # Tensorboard: Merge all the summaries and write them out
-        writer = tf.train.SummaryWriter(os.path.join(FLAGS.tf_summaries_dir, 'tb'), sess.graph)
+        writer = tf.train.SummaryWriter(os.path.join(FLAGS.summaries_dir, 'tb'), sess.graph)
 
         # If we are inferencing, only do that.
         if FLAGS.inference_db:
@@ -470,7 +481,7 @@ def main(_):
 
                     # Saving Snapshot
                     if FLAGS.snapshotInterval and current_epoch >= next_snapshot_save:
-                        save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.tf_serving_export)
+                        save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.serving_export)
 
                         # To find next nearest epoch value that exactly divisible by FLAGS.snapshotInterval
                         next_snapshot_save = (round(float(current_epoch)/FLAGS.snapshotInterval) + 1) * FLAGS.snapshotInterval 
@@ -485,7 +496,7 @@ def main(_):
 
              # If required, perform final snapshot save
             if FLAGS.epoch > last_snapshot_save_epoch:
-                save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, FLAGS.epoch, FLAGS.tf_serving_export)
+                save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, FLAGS.epoch, FLAGS.serving_export)
 
         # If required, perform final Validation pass
         if FLAGS.validation_db and current_epoch >= next_validation:
