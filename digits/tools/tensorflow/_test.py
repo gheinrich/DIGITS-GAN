@@ -6,18 +6,18 @@ import os
 import subprocess
 
 #dataset_dir = "/Users/tzaman/jobs/20160715-230349-5f23" #CIFAR100
-dataset_dir = "/Users/tzaman/jobs/20160715-230434-21a4" #CIFAR10 LMDB
+#dataset_dir = "/Users/tzaman/jobs/20160715-230434-21a4" #CIFAR10 LMDB
 #dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST LMDB
 #dataset_dir = "/Users/tzaman/jobs/gradient_regression" #Gradient Regression
 #dataset_dir = "/Users/tzaman/jobs/20161002-185828-d0cd" #Triangle-segmentation
-#dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5 Uncompressed
+dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5 Uncompressed
 #dataset_dir = "/Users/tzaman/jobs/20161014-112335-a0f1" #MNIST HDF5 GZIP
 #dataset_dir = "/Users/tzaman/jobs/20161014-151839-2c91" #CIFAR10 HDF5 32x32
 
 # TIM'S OVERRIDES:
 args = ""
 
-if 1:
+if 0:
 	args = args + (
 	" --labels=" + dataset_dir + "/labels.txt"
 	" --networkDirectory=../../standard-networks/tensorflow"
@@ -43,12 +43,13 @@ if 1:
 	" --shuffle=true"
 	#" --optimization=adam"
 	#" --weights=/Users/tzaman/Desktop/result/loadme2"
-	" --batchSize=128"
+	" --batch_size=128"
 	" --log_runtime_stats_per_step=0"
+	" --snapshotInterval=0"
 	" --type=cpu"
 	)
 
-if 1: #Load weights for plain lenet
+if 0: #Load weights for plain lenet
 	args = args + (
 		" --weights=/Users/tzaman/jobs/20161014-173513-623a/snapshot_1.0_Model/Model.ckpt"
 		" --croplen=28"
@@ -76,25 +77,31 @@ if 0: # toggle if using a dataset with labels in a db
 		" --validation_labels=" + dataset_dir + "/val_db_labels"
 		)
 
-if 0: # Inference
-	dataset_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20160615-215643-75fd" #MNIST
-	network_dir = "/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20161006-174413-74a4" #MNIST
-	#inference_db = "/Users/tzaman/Desktop/zes.png"
-	inference_db = "/Users/tzaman/Desktop/list.txt"
+if 1: # Inference
+	dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST
+	network_dir = "/Users/tzaman/jobs/20161015-162923-2ce8" #MNIST
+	inference_db = "/Users/tzaman/Desktop/zes.png"
+	#inference_db = "/Users/tzaman/Desktop/list.txt"
 	args = args + (
 		" --inference_db=" + inference_db + ""
 		" --batch_size=1"
 		" --labels=" + dataset_dir + "/labels.txt"
-		" --mean=" + network_dir + "/mean.jpg"
+		" --mean=" + dataset_dir + "/mean.binaryproto"
 		" --subtractMean=pixel"
 		" --network=network.py"
 		" --networkDirectory=" + network_dir + ""
-		" --weights=" + network_dir + "/snapshot_1.0_Model"
-		" --allPredicitons=1"
+		" --weights=" + network_dir + "/snapshot_1.0.ckpt"
+		#" --allPredictions=1"
 		#" --visualization=False"
 		#" --testMany=False"
 		#" --testUntil=-1"
 		)
+	if 1: #with visualize
+		args = args + (
+			" --visualize_inf=1"
+			)
+
+
 
 # For some reason, the DYLD_LIBRARY_PATH is not copied with it, so supply in-line:
 

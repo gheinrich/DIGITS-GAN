@@ -144,7 +144,7 @@ class TensorflowTrainTask(TrainTask):
                 ]
 
         if self.batch_size is not None:
-            args.append('--batchSize=%d' % self.batch_size)
+            args.append('--batch_size=%d' % self.batch_size)
 
         if self.use_mean != 'none':
             mean_file = self.dataset.get_mean_file()
@@ -490,7 +490,7 @@ class TensorflowTrainTask(TrainTask):
             args.append('--croplen=%d' % self.crop_size)
 
         if layers=='all':
-            args.append('--visualization=1')
+            args.append('--visualize_inf=1')
             args.append('--save=%s' % self.job_dir)
 
         # Convert them all to strings
@@ -526,7 +526,7 @@ class TensorflowTrainTask(TrainTask):
                         p.terminate()
                         raise digits.inference.errors.InferenceError('%s classify one task got aborted. error code - %d' % (self.get_framework_id(), p.returncode))
 
-                    if line is not None:
+                    if line is not None and len(line) > 1:
                         if not self.process_test_output(line, predictions, 'one'):
                             self.logger.warning('%s classify one task unrecognized input: %s' % (self.get_framework_id(), line.strip()))
                             unrecognized_output.append(line)
@@ -575,7 +575,8 @@ class TensorflowTrainTask(TrainTask):
             #    |  |- weights
             #    |- 2
             for layer_id,layer in vis_db['layers'].items():
-                layer_desc = layer['name'][...].tostring()
+                #layer_desc = layer['name'][...].tostring()
+                layer_desc = layer.attrs['name']
                 if 'Sequential' in layer_desc or 'Parallel' in layer_desc:
                     # ignore containers
                     continue

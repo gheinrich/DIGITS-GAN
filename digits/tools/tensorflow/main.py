@@ -41,7 +41,8 @@ import model
 import tf_data
 
 # Constants
-MIN_LOGS_PER_TRAIN_EPOCH = 80 # torch default: 8
+TF_NUM_THREADS = 6
+MIN_LOGS_PER_TRAIN_EPOCH = 8 # torch default: 8
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
 #logging.getLogger("tensorflow").setLevel(logging.ERROR)
@@ -50,7 +51,7 @@ logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters. #float, integer, boolean, string
-tf.app.flags.DEFINE_integer('batchSize', 16, """Number of images to process in a batch""")
+tf.app.flags.DEFINE_integer('batch_size', 16, """Number of images to process in a batch""")
 tf.app.flags.DEFINE_integer('croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
 tf.app.flags.DEFINE_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
 tf.app.flags.DEFINE_string('inference_db', '', """Directory with inference file source""")
@@ -73,6 +74,7 @@ tf.app.flags.DEFINE_string('type', 'cpu', """Hardware acceleration: (cpu, gpu)""
 tf.app.flags.DEFINE_string('validation_db', '', """Directory with validation file source""")
 tf.app.flags.DEFINE_string('validation_labels', '', """Directory with an optional and seperate labels file source for validation""")
 tf.app.flags.DEFINE_string('visualizeModelPath', '', """Constructs the current model for visualization""")
+tf.app.flags.DEFINE_boolean('visualize_inf', False, """Will output weights and activations for an inference job.""")
 tf.app.flags.DEFINE_string('weights', '', """Filename for weights of a model to use for fine-tuning""")
 
 tf.app.flags.DEFINE_integer('bitdepth', 8, """Specifies an image's bitdepth""") # @TODO(tzaman): is this in line with the DIGITS team?
@@ -85,11 +87,11 @@ tf.app.flags.DEFINE_float('lr_power', float('Inf'), """Required to calculate lea
 tf.app.flags.DEFINE_string('lr_stepvalues', '', """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid). For the 'multistep' lr_policy you can input multiple values seperated by commas""")
 
 # Tensorflow-unique arguments for DIGITS
+tf.app.flags.DEFINE_string('save_vars', 'all', """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
 tf.app.flags.DEFINE_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
 tf.app.flags.DEFINE_boolean('serving_export', False, """Flag for exporting an Tensorflow Serving model""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
-tf.app.flags.DEFINE_string('save_vars', 'all', """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
 
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
@@ -210,6 +212,25 @@ def save_snapshot(sess, saver, save_dir, snapshot_prefix, epoch, for_serving=Fal
         #meta_graph_def = tf.train.export_meta_graph(filename='?')
 
 
+def save_weight_visualization(w_names, a_names, w, a):
+    try:
+        import h5py
+    except ImportError:
+        logging.error("Attempt to create HDF5 Loader but h5py is not installed.")
+        exit(-1)
+    fn = os.path.join(FLAGS.save, 'vis.h5')
+    vis_db = h5py.File(fn, 'w')
+    db_layers = vis_db.create_group("layers")
+
+    logging.info('Saving visualization to %s' % fn)
+    for i in range(0,len(w)):
+        dset = db_layers.create_group(str(i))
+        name = '%s\n%s' % (w_names[i], a_names[i].name)
+        dset.attrs['name'] = name
+        dset.create_dataset('weights', data=w[i])
+        dset.create_dataset('activations', data=a[i])
+    vis_db.close()
+
 def Inference(sess, model):
     """
     Runs one inference (evaluation) epoch (all the files in the loader)
@@ -217,9 +238,28 @@ def Inference(sess, model):
     #has_logsoftmax = True # @TODO(tzaman): check if there is a logsoftmax in the model
     #if has_logsoftmax:
     #    model.model = tf.exp(model.model)
+
+    weight_vars = []
+    activation_ops = []
+    if FLAGS.visualize_inf:
+        trainable_weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
+        # Retrace the origin op of each variable
+        for n in tf.get_default_graph().as_graph_def().node:
+            for tw in trainable_weights:
+                tw_name_reader = tw.name.split(':')[0] + '/read'
+                if tw_name_reader in n.input:
+                    node_op_name = n.name + ':0' # @TODO(tzaman) this assumes exactly 1 output - allow to be dynamic!
+                    weight_vars.append(node_op_name)
+                    activation_ops.append(tw)
+                    continue
+
     try:
         while not model.queue_coord.should_stop():
-            keys, preds  = sess.run([model.dataloader.batch_k, model.model], feed_dict=model.feed_dict)
+            keys, preds, [w], [a]  = sess.run([model.dataloader.batch_k, model.model, [weight_vars], [activation_ops]], feed_dict=model.feed_dict)
+
+            if FLAGS.visualize_inf:            
+                save_weight_visualization(weight_vars, activation_ops, w, a)
+
             # @TODO(tzaman): error on no output?
             for i in range(len(keys)):
                 #    for j in range(len(preds)):
@@ -275,8 +315,8 @@ def main(_):
         if FLAGS.seed:
             tf.set_random_seed(FLAGS.seed)
 
-        batch_size_train = FLAGS.batchSize
-        batch_size_val = FLAGS.batchSize
+        batch_size_train = FLAGS.batch_size
+        batch_size_val = FLAGS.batch_size
         logging.info("Train batch size is %s and validation batch size is %s", batch_size_train, batch_size_val)
 
         # This variable keeps track of next epoch, when to perform validation.
@@ -352,7 +392,7 @@ def main(_):
         if FLAGS.inference_db:
             inf_model = model.Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
             inf_model.create_dataloader(FLAGS.inference_db)
-            inf_model.dataloader.setup(None, False, FLAGS.bitdepth, FLAGS.batchSize, 1, FLAGS.seed)
+            inf_model.dataloader.setup(None, False, FLAGS.bitdepth, FLAGS.batch_size, 1, FLAGS.seed)
             inf_model.dataloader.set_augmentation(mean_loader)
             inf_model.init_dataloader()
             if not input_shape:
@@ -365,6 +405,7 @@ def main(_):
         # implementations.
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True, # will automatically do non-gpu supported ops on cpu
+            intra_op_parallelism_threads=TF_NUM_THREADS,
             log_device_placement=FLAGS.log_device_placement))
 
         if FLAGS.visualizeModelPath:

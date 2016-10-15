@@ -51,6 +51,8 @@ def get_backend_of_source(db_path):
         backend: the backend type
     """
 
+    #@TODO(tzaman): rewrite this to say : *if* it contains .mdb -> lmdb, *if* it contains .. etc
+
     file_path = None
 
     if os.path.isdir(db_path):
