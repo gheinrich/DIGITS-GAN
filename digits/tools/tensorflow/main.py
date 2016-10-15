@@ -235,9 +235,9 @@ def Inference(sess, model):
     """
     Runs one inference (evaluation) epoch (all the files in the loader)
     """
-    #has_logsoftmax = True # @TODO(tzaman): check if there is a logsoftmax in the model
-    #if has_logsoftmax:
-    #    model.model = tf.exp(model.model)
+
+    if FLAGS.labels: # Classification -> assume softmax usage
+        model.model = tf.nn.softmax(model.model)
 
     weight_vars = []
     activation_ops = []
