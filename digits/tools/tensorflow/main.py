@@ -225,8 +225,8 @@ def save_weight_visualization(w_names, a_names, w, a):
     logging.info('Saving visualization to %s' % fn)
     for i in range(0,len(w)):
         dset = db_layers.create_group(str(i))
-        name = '%s\n%s' % (w_names[i], a_names[i].name)
-        dset.attrs['name'] = name
+        dset.attrs['var'] = w_names[i].name
+        dset.attrs['op'] = a_names[i]
         dset.create_dataset('weights', data=w[i])
         dset.create_dataset('activations', data=a[i])
     vis_db.close()
@@ -245,7 +245,6 @@ def Inference(sess, model):
         trainable_weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
         # Retrace the origin op of each variable
         for n in tf.get_default_graph().as_graph_def().node:
-            print(n.name)
             for tw in trainable_weights:
                 tw_name_reader = tw.name.split(':')[0] + '/read'
                 if tw_name_reader in n.input:

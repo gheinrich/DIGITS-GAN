@@ -570,16 +570,16 @@ class TensorflowTrainTask(TrainTask):
             # <root>
             # |- layers
             #    |- 1
-            #    |  |- name
+            #    |  [attrs] - op
+            #    |  [attrs] - var
             #    |  |- activations
             #    |  |- weights
             #    |- 2
             for layer_id,layer in vis_db['layers'].items():
                 #layer_desc = layer['name'][...].tostring()
-                layer_desc = layer.attrs['name']
-                if 'Sequential' in layer_desc or 'Parallel' in layer_desc:
-                    # ignore containers
-                    continue
+                op_name = layer.attrs['op']
+                var_name = layer.attrs['var']
+                layer_desc = "%s\n%s" % (op_name,var_name)
                 idx = int(layer_id)
                 # activations
                 if 'activations' in layer:
@@ -587,6 +587,10 @@ class TensorflowTrainTask(TrainTask):
                     # skip batch dimension
                     if len(data.shape)>1 and data.shape[0]==1:
                         data = data[0]
+                    if len(data.shape) == 3:
+                        data = data.transpose(2, 0, 1)
+                    elif len(data.shape) == 4:
+                        data = data.transpose(3,2,0,1)
                     vis = utils.image.get_layer_vis_square(data)
                     mean, std, hist = self.get_layer_statistics(data)
                     visualizations.append(
@@ -606,17 +610,16 @@ class TensorflowTrainTask(TrainTask):
                 # weights
                 if 'weights' in layer:
                     data = np.array(layer['weights'][...])
-                    if 'Linear' not in layer_desc:
-                        vis = utils.image.get_layer_vis_square(data)
+                    if len(data.shape) == 3:
+                        data = data.transpose(2, 0, 1)
+                    elif len(data.shape) == 4:
+                        data = data.transpose(3,2,0,1)
+                    if 'MatMul' in layer_desc:
+                        vis = None # too many layers to display?
                     else:
-                        # Linear (inner product) layers have too many weights
-                        # to display
-                        vis = None
+                        vis = utils.image.get_layer_vis_square(data)
                     mean, std, hist = self.get_layer_statistics(data)
                     parameter_count = reduce(operator.mul, data.shape, 1)
-                    if 'bias' in layer:
-                        bias = np.array(layer['bias'][...])
-                        parameter_count += reduce(operator.mul, bias.shape, 1)
                     visualizations.append(
                                            {
                                                'id':          idx,
