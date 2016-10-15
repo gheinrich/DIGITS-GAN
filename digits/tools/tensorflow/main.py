@@ -245,12 +245,13 @@ def Inference(sess, model):
         trainable_weights = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES)
         # Retrace the origin op of each variable
         for n in tf.get_default_graph().as_graph_def().node:
+            print(n.name)
             for tw in trainable_weights:
                 tw_name_reader = tw.name.split(':')[0] + '/read'
                 if tw_name_reader in n.input:
                     node_op_name = n.name + ':0' # @TODO(tzaman) this assumes exactly 1 output - allow to be dynamic!
-                    weight_vars.append(node_op_name)
-                    activation_ops.append(tw)
+                    weight_vars.append(tw)
+                    activation_ops.append(node_op_name)
                     continue
 
     try:

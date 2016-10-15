@@ -402,7 +402,7 @@ class TensorflowTrainTask(TrainTask):
         snapshots = []
         for filename in os.listdir(self.job_dir):
             # find models
-            match = re.match(r'%s_(\d+)\.?(\d*)\.ckpt' % self.snapshot_prefix, filename)
+            match = re.match(r'%s_(\d+)\.?(\d*)\.ckpt$' % self.snapshot_prefix, filename)
             if match:
                 epoch = 0
                 if match.group(2) == '':
