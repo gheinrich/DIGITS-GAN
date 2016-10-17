@@ -17,7 +17,7 @@ dataset_dir = "/Users/tzaman/jobs/20161014-112206-c4ec" #MNIST HDF5 Uncompressed
 # TIM'S OVERRIDES:
 args = ""
 
-if 0:
+if 1:
 	args = args + (
 	" --labels=" + dataset_dir + "/labels.txt"
 	" --networkDirectory=../../standard-networks/tensorflow"
@@ -32,8 +32,8 @@ if 0:
 	" --subtractMean=pixel"
 	#" --subtractMean=image"
 	#" --croplen=28"
-	" --train_db=" + dataset_dir + "/train_db"
-	" --validation_db=" + dataset_dir + "/val_db"
+	#" --train_db=" + dataset_dir + "/train_db"
+	#" --validation_db=" + dataset_dir + "/val_db"
 	" --summaries_dir=/tmp/tb/"
 	" --save=/Users/tzaman/Desktop/result"
 	" --seed=1"
@@ -43,11 +43,16 @@ if 0:
 	" --shuffle=true"
 	#" --optimization=adam"
 	#" --weights=/Users/tzaman/Desktop/result/loadme2"
-	" --batch_size=128"
+	" --batch_size=32"
 	" --log_runtime_stats_per_step=0"
 	" --snapshotInterval=0"
 	" --type=cpu"
 	)
+
+if 1: #TFRecords
+	args = args + (
+		" --train_db=/Users/tzaman/Desktop/tfrecords_mnist/train.tfrecords"
+		)
 
 if 0: #Load weights for plain lenet
 	args = args + (
@@ -77,7 +82,7 @@ if 0: # toggle if using a dataset with labels in a db
 		" --validation_labels=" + dataset_dir + "/val_db_labels"
 		)
 
-if 1: # Inference
+if 0: # Inference
 	dataset_dir = "/Users/tzaman/jobs/20160615-215643-75fd" #MNIST
 	network_dir = "/Users/tzaman/jobs/20161015-162923-2ce8" #MNIST
 	inference_db = "/Users/tzaman/Desktop/zes.png"

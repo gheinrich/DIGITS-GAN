@@ -34,58 +34,44 @@ NUM_THREADS_DATA_LOADER = 4
 LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 
 # Supported extensions for Loaders
-HDF5_EXT = ['.h5','.hdf5']
-LMDB_EXT = ['.mdb','.lmdb']
-IMG_FILE_EXT = ['.jpg','.png']
-FILELIST_EXT = ['.txt']
-LIST_DELIMITER = ' '
+DB_EXTENSIONS = {
+        'hdf5': ['.H5', '.HDF5'],
+        'lmdb': ['.MDB','.LMDB'],
+        'tfrecords' :['.TFRECORDS'],
+        'filelist': ['.TXT'],
+        'file': ['.JPG','.JPEG','.PNG'],
+        }
+
+LIST_DELIMITER = ' ' # For the FILELIST format
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
 
 def get_backend_of_source(db_path):
     """
-    Takes a path as argument and infers the format of the data
+    Takes a path as argument and infers the format of the data.
+    If a directory is provided, it looks for the existance of an extension
+    in the entire directory in an order of a priority of dbs (hdf5, lmdb, filelist, file)
     Args:
         db_path: path to a file or directory
     Returns:
         backend: the backend type
     """
 
-    #@TODO(tzaman): rewrite this to say : *if* it contains .mdb -> lmdb, *if* it contains .. etc
-
-    file_path = None
-
+    # If a directory is given, we include all its contents. Otherwise it's just the one file.
     if os.path.isdir(db_path):
-        # Select a single file from the directory to test the extension on later
-        for f in os.listdir(db_path):
-            if not f.startswith('.'):
-                file_path = db_path + '/' + f
-                break
-        if not file_path:
-            logging.error("File source directory (%s) empty." % (db_path))
-            exit(-1)
+        files_in_path = [fn for fn in os.listdir(db_path) if not fn.startswith('.')]
     else:
-        file_path = db_path
+        files_in_path = [db_path]
 
-    if os.path.isfile(file_path):
-        _, file_extension = os.path.splitext(file_path)
-        if file_extension in HDF5_EXT:
-            return 'hdf5'
-        elif file_extension in LMDB_EXT:
-            return 'lmdb'
-        elif file_extension in FILELIST_EXT:
-            return 'filelist'
-        elif file_extension in IMG_FILE_EXT:
-            return 'file'
-    else:
-        logging.error("No file found for infering backend (%s)." % (file_path))
-        exit(-1)
+    # Keep the below priority ordering
+    for db_fmt in ['hdf5', 'lmdb', 'tfrecords', 'filelist', 'file']:
+        ext_list = DB_EXTENSIONS[db_fmt]
+        for ext in ext_list:
+            if any(ext in os.path.splitext(fn)[1].upper() for fn in files_in_path):
+                return db_fmt
 
-    # Unknown backend.
-    return None
-
-
-    #/Users/tzaman/Dropbox/code/DIGITS/digits/jobs/20160615-215643-75fd/train_db
+    logging.error("Cannot infer backend from db_path (%s)." % (db_path))
+    exit(-1)
 
 class MeanLoader(object):
     """
@@ -109,9 +95,9 @@ class MeanLoader(object):
         to make sure these operations are not repeated in the graph
         """
 
-        _, file_extension = os.path.splitext(self._mean_file_path)
+        file_extension = os.path.splitext(self._mean_file_path)[1].upper()
 
-        if file_extension == '.binaryproto':
+        if file_extension == '.BINARYPROTO':
             blob = caffe_tf_pb2.BlobProto()
             with open(self._mean_file_path, 'rb') as infile:
                 blob.ParseFromString(infile.read())
@@ -184,8 +170,9 @@ class LoaderFactory(object):
         self._seed = None
         self.unencoded_data_format = 'whc'
         self.unencoded_channel_scheme = 'rgb'
-
         self.summaries = None
+
+        # @TODO(tzaman) rewrite this factory again
         pass
 
     @staticmethod
@@ -201,6 +188,8 @@ class LoaderFactory(object):
             loader = Hdf5Loader()
         elif backend == 'file' or backend == 'filelist':
             loader = FileListLoader()
+        elif backend == 'tfrecords':
+            loader = TFRecordsLoader()
         else:
             logging.error("Backend (%s) not implemented" % (backend))
             exit(-1)
@@ -296,26 +285,8 @@ class LoaderFactory(object):
         # see https://github.com/tensorflow/tensorflow/issues/4535#issuecomment-248990633
         #
         #with tf.container('queue-container'): 
-        
-        if self.keys is None:
-            # Not using keys, but a range
-            key_queue = tf.train.range_input_producer(
-                self.total,
-                num_epochs=self.num_epochs,
-                capacity=self.total,
-                shuffle=self.shuffle,
-                seed=self._seed,
-                name='input_producer'
-                )
-        elif type(self.keys[0]) is str:
-            key_queue = tf.train.string_input_producer(
-                self.keys,
-                num_epochs=self.num_epochs,
-                capacity=self.total,
-                shuffle=self.shuffle,
-                seed=self._seed,
-                name='input_producer'
-                )
+
+        key_queue = self.get_queue()
 
         single_label = None
         single_label_shape = None
@@ -425,6 +396,16 @@ class LmdbLoader(LoaderFactory):
                     exit(-1)
                 self.image_dtype = tf.uint16
 
+    def get_queue(self):
+        return tf.train.string_input_producer(
+                self.keys,
+                num_epochs=self.num_epochs,
+                capacity=self.total,
+                shuffle=self.shuffle,
+                seed=self._seed,
+                name='input_producer'
+            )
+
     def get_tf_data_type(self):
         """Returns the type of the data, in tf format.
             It takes in account byte-data or floating point data.
@@ -495,10 +476,10 @@ class LmdbLoader(LoaderFactory):
         Returns:
             key, single_data, single_data_shape, single_label, single_label_shape
         """
-        key = key_queue.dequeue() #Operation that dequeues one key and returns a string with the key
-        py_func_return_type = [self.get_tf_data_type(), tf.int32, self.get_tf_label_type(), tf.int32]
-        d, ds, l, ls = tf.py_func(self.generate_data_op(), [key], py_func_return_type, name='data_reader')
-        return key, d, ds, l, ls
+
+        key, value = self.reader.read(key_queue)
+        shape = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
+        return key, value, shape
 
     def __del__(self):
         self.lmdb_env.close()
@@ -557,6 +538,16 @@ class FileListLoader(LoaderFactory):
 
         self.reader = tf.WholeFileReader()
 
+    def get_queue(self):
+        return tf.train.string_input_producer(
+                self.keys,
+                num_epochs=self.num_epochs,
+                capacity=self.total,
+                shuffle=self.shuffle,
+                seed=self._seed,
+                name='input_producer'
+            )
+
     def get_single_data(self, key_queue):
         """
         Returns:
@@ -565,7 +556,77 @@ class FileListLoader(LoaderFactory):
 
         key, value = self.reader.read(key_queue)
         shape = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
-        return key, value, shape
+        return key, value, shape # @TODO(tzaman) - Note: will only work for inferencing stage!
+
+class TFRecordsLoader(LoaderFactory):
+    """ The TFRecordsLoader connects directly into the tensorflow graph.
+    It uses TFRecords, the 'standard' tensorflow data format.
+    """
+    def __init__(self):
+        pass
+
+    def initialize(self):
+        self.float_data = False # For now only strings
+        self.keys = None # Not using keys
+        self.data_encoded = False # @TODO(tzaman)
+        self.unencoded_data_format = 'hwc'
+        self.unencoded_channel_scheme = 'rgb'
+        self.reader = None
+        if self.bitdepth == 8:
+            self.image_dtype = tf.uint8
+        else:
+            self.image_dtype = tf.uint16
+
+        # Count all the records @TODO(tzaman): account for shards!
+        record_iter = tf.python_io.tf_record_iterator(self.db_path)
+        self.total = 0
+        for r in record_iter:
+            self.total += 1
+
+        # Evaluate the last image (still visible in this scope)
+        with tf.Session() as sess_tmp:
+            single_ex = (sess_tmp.run(tf.parse_single_example(r,features={
+                'height': tf.FixedLenFeature([], tf.int64),
+                'width': tf.FixedLenFeature([], tf.int64),
+                'depth': tf.FixedLenFeature([], tf.int64),
+                'image_raw': tf.FixedLenFeature([], tf.string), #tf.VarLenFeature(tf.string)
+                'label': tf.FixedLenFeature([], tf.int64),
+            })))
+            self.channels = single_ex['depth']
+            self.height = single_ex['height']
+            self.width = single_ex['width']
+
+        # Set up the reader
+        # @TODO(tzaman) there's a filename queue because it can have multiple (sharded) tfrecord files (!)
+        #  .. account for that!
+        self.reader = tf.TFRecordReader(name='tfrecord_reader')
+
+    def get_queue(self):
+        return tf.train.string_input_producer([self.db_path], num_epochs=self.num_epochs)
+
+    def get_single_data(self, key_queue):
+        """
+        Returns:
+            key, single_data, single_data_shape, single_label, single_label_shape
+        """
+
+        _, serialized_example = self.reader.read(key_queue)
+        features = tf.parse_single_example(
+            serialized_example,
+            # Defaults are not specified since both keys are required.
+            features={
+                'image_raw': tf.FixedLenFeature([], tf.string),
+                'label': tf.FixedLenFeature([], tf.int64),
+            })
+
+        key = np.array([], dtype=np.int32) # @TODO: this is not dynamic
+        d = features['image_raw']
+        ds = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
+        l = features['label']#l = tf.cast(features['label'], tf.int32)
+        ls = np.array([], dtype=np.int32) # @TODO: this is not dynamic
+        return key, d, ds, l, ls
+
+
 
 
 class Hdf5Loader(LoaderFactory):
@@ -614,6 +675,16 @@ class Hdf5Loader(LoaderFactory):
         if len(db['data']) == 0:
             logging.error("HDF5 database contains no data.")
             exit(-1)
+
+    def get_queue(self):
+        return tf.train.range_input_producer(
+                self.total,
+                num_epochs=self.num_epochs,
+                capacity=self.total,
+                shuffle=self.shuffle,
+                seed=self._seed,
+                name='input_producer'
+            )
 
     def get_tf_data_type(self):
         """Returns the type of the data, in tf format.
