@@ -138,7 +138,7 @@ def summary_to_lists(summary_str):
     for s in summ.value:
         if s.HasField('simple_value'):# and s.simple_value: # Only parse scalar_summaries
             if s.simple_value == float('Inf'):
-                raise ValueError('Model diverged with %s = %s' % (s.tag, s.simple_value))
+                raise ValueError('Model diverged with %s = %s : Try decreasing your learning rate' % (s.tag, s.simple_value))
             tags.append(s.tag)
             vals.append(s.simple_value)
     vals = np.asarray(vals)
@@ -534,7 +534,8 @@ def main(_):
                 logging.info('Done training for epochs: tf.errors.OutOfRangeError')
             except ValueError as err:
                 logging.error(err.args[0])
-            except (KeyboardInterrupt, SystemExit):
+                exit(-1) # DIGITS wants a dirty error.
+            except (KeyboardInterrupt):
                 logging.info('Interrupt signal received.')
 
              # If required, perform final snapshot save

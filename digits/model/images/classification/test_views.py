@@ -102,7 +102,6 @@ end
     TENSORFLOW_NETWORK = \
 """
 def build_model(params):
-    # Implementation with native tf
     ninputs = params['input_shape'][0] * params['input_shape'][1] * params['input_shape'][2]
     W = tf.get_variable('W', [ninputs, params['nclasses']], initializer=tf.constant_initializer(0.0))
     b = tf.get_variable('b', [params['nclasses']], initializer=tf.constant_initializer(0.0)),

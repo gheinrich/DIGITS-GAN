@@ -105,7 +105,18 @@ end
     TENSORFLOW_NETWORK = \
 """
 def build_model(params):
-    @TODO(tzaman)
+    ninputs = params['input_shape'][0] * params['input_shape'][1] * params['input_shape'][2]
+    W = tf.get_variable('W', [ninputs, 2], initializer=tf.constant_initializer(0.0))
+    b = tf.get_variable('b', [2], initializer=tf.constant_initializer(0.0)),
+    model = tf.reshape(params['x'], shape=[-1, ninputs])
+    model = tf.add(tf.matmul(model, W), b)
+    def loss(y):
+        y = tf.reshape(y, shape=[-1, 2])
+        return digits.mse_loss(model, y)
+    return {
+        'model' : model,
+        'loss' : loss
+        }
 """
 
     @classmethod
@@ -767,9 +778,11 @@ end
     TENSORFLOW_NETWORK = \
 """
 def build_model(params):
-    model = params['x']
+    model = digits.nhwc_to_nchw(params['x']) # Hack to conform with NCHW requirement of IP tests
+    W = tf.get_variable('W', [1], initializer=tf.constant_initializer(0.0))
     def loss(y):
-        return digits.mse_loss(model, y)
+        # Give it something to optimize
+        return digits.mse_loss(tf.reduce_mean(model)*W, y)
     return {
         'model' : model,
         'loss' : loss
@@ -1238,3 +1251,39 @@ end
         assert output.shape == (1, self.CROP_SIZE, self.CROP_SIZE), \
                 'shape mismatch: %s' % str(output.shape)
 
+#class TestTensorflowViews(BaseTestViews, test_utils.TensorflowMixin):
+#    # @TODO(tzaman) For TF i need to pass a proper dataset too - how to do this best?
+#    pass
+
+class TestTensorflowCreation(BaseTestCreation, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreated(BaseTestCreated, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreatedWithGradientDataExtension(BaseTestCreatedWithGradientDataExtension, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowCreatedWithGradientDataExtensionNoValSet(BaseTestCreatedWithGradientDataExtension, test_utils.TensorflowMixin):
+    @classmethod
+    def setUpClass(cls):
+        super(TestTensorflowCreatedWithGradientDataExtensionNoValSet, cls).setUpClass(val_image_count=0)
+
+class TestTensorflowCreatedWithImageProcessingExtensionMeanImage(BaseTestCreatedWithImageProcessingExtension, test_utils.TensorflowMixin):
+    MEAN = 'image'
+
+class TestTensorflowCreatedWithImageProcessingExtensionMeanPixel(BaseTestCreatedWithImageProcessingExtension, test_utils.TensorflowMixin):
+    MEAN = 'pixel'
+
+class TestTensorflowCreatedWithImageProcessingExtensionMeanNone(BaseTestCreatedWithImageProcessingExtension, test_utils.TensorflowMixin):
+    MEAN = 'none'
+
+class TestTensorflowCreatedVariableSizeDataset(BaseTestCreatedWithImageProcessingExtension, test_utils.TensorflowMixin):
+    MEAN = 'none'
+    VARIABLE_SIZE_DATASET = True
+
+class TestTensorflowCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TensorflowMixin):
+    pass
+
+class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TensorflowMixin):
+    pass
