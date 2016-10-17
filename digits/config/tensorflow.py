@@ -8,7 +8,7 @@ from subprocess import Popen,PIPE
 from . import option_list
 
 VARNAME_ENV_TFPY = 'TENSORFLOW_PYTHON'
-DEFAULT_PYTHON_EXE = 'python' # @TODO(tzaman) - this can probably be improved
+DEFAULT_PYTHON_EXE = 'python2' # @TODO(tzaman) - use the python executable that was used to launch digits?
 
 if platform.system() == 'Darwin':
     # DYLD_LIBRARY_PATH and LD_LIBRARY_PATH is sometimes stripped, and the cuda libraries might need it
