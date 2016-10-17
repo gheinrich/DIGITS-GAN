@@ -481,52 +481,54 @@ class BaseTestCreation(BaseViewsTestWithDataset):
 
     def test_bad_network_definition(self):
         if self.FRAMEWORK == 'caffe':
-            bogus_net = """
-                layer {
-                    name: "hidden"
-                    type: 'BogusCode'
-                    bottom: "data"
-                    top: "output"
-                }
-                layer {
-                    name: "loss"
-                    type: "SoftmaxWithLoss"
-                    bottom: "output"
-                    bottom: "label"
-                    top: "loss"
-                    exclude { stage: "deploy" }
-                }
-                layer {
-                    name: "softmax"
-                    type: "Softmax"
-                    bottom: "output"
-                    top: "softmax"
-                    include { stage: "deploy" }
-                }
-                """
+            bogus_net = \
+"""
+layer {
+    name: "hidden"
+    type: 'BogusCode'
+    bottom: "data"
+    top: "output"
+}
+layer {
+    name: "loss"
+    type: "SoftmaxWithLoss"
+    bottom: "output"
+    bottom: "label"
+    top: "loss"
+    exclude { stage: "deploy" }
+}
+layer {
+    name: "softmax"
+    type: "Softmax"
+    bottom: "output"
+    top: "softmax"
+    include { stage: "deploy" }
+}
+"""
         elif self.FRAMEWORK == 'torch':
-            bogus_net = """
-                local model = BogusCode(0)
-                return function(params)
-                    return {
-                        model = model
-                    }
-                end
-                """
+            bogus_net = \
+"""
+local model = BogusCode(0)
+return function(params)
+    return {
+        model = model
+    }
+end
+"""
         elif self.FRAMEWORK == 'tensorflow':
-            bogus_net = """
-                def build_model(params):
-                    model = BogusCode(0)
+            bogus_net = \
+"""
+def build_model(params):
+    model = BogusCode(0)
 
-                    def loss(y):
-                        return BogusCode(0)
+    def loss(y):
+        return BogusCode(0)
 
-                    return {
-                        'model' : model,
-                        'loss' : loss,
-                        }
-
-                """
+    return {
+        'model' : model,
+        'loss' : loss,
+        }
+"""
         job_id = self.create_model(json=True, network=bogus_net)
         assert self.model_wait_completion(job_id) == 'Error', 'job should have failed'
         job_info = self.job_info_html(job_id=job_id, job_type='models')
@@ -946,15 +948,7 @@ class BaseTestCreatedCropInForm(BaseTestCreated):
     CROP_SIZE = 8
 
 class BaseTestCreatedDataAug(BaseTestCreatedTall):
-    AUG_FLIP = 'fliplrud'
-    AUG_QUAD_ROT = 'rotall'
-    AUG_ROT = 45
-    AUG_SCALE = 0.07
-    AUG_NOISE = 0.03
-    AUG_HSV_USE = True
-    AUG_HSV_H = 0.02
-    AUG_HSV_S = 0.04
-    AUG_HSV_V = 0.06
+    pass
 
 class BaseTestCreatedCropInNetwork(BaseTestCreated):
     CAFFE_NETWORK = \
@@ -1127,6 +1121,15 @@ class TestTorchCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TorchMixi
     pass
 
 class TestTorchCreatedDataAug(BaseTestCreatedDataAug, test_utils.TorchMixin):
+    AUG_FLIP = 'fliplrud'
+    AUG_QUAD_ROT = 'rotall'
+    AUG_ROT = 45
+    AUG_SCALE = 0.07
+    AUG_NOISE = 0.03
+    AUG_HSV_USE = True
+    AUG_HSV_H = 0.02
+    AUG_HSV_S = 0.04
+    AUG_HSV_V = 0.06
     TRAIN_EPOCHS = 2
 
 class TestTorchCreatedCropInNetwork(BaseTestCreatedCropInNetwork, test_utils.TorchMixin):
@@ -1270,8 +1273,9 @@ class TestSweepCreation(BaseViewsTestWithDataset, test_utils.CaffeMixin):
 
 ## Tensorflow
 
-class TestTensorflowViews(BaseTestViews, test_utils.TensorflowMixin):
-    pass
+#class TestTensorflowViews(BaseTestViews, test_utils.TensorflowMixin):
+#    # @TODO(tzaman) For TF i need to pass a proper dataset too - how to do this best?
+#    pass
 
 class TestTensorflowCreation(BaseTestCreation, test_utils.TensorflowMixin):
     pass
@@ -1280,21 +1284,19 @@ class TestTensorflowCreatedUnencodedShuffle(BaseTestCreated, test_utils.Tensorfl
     ENCODING = 'none'
     SHUFFLE = True
 
-#class TestTensorflowCreatedHdf5(BaseTestCreated, test_utils.TensorflowMixin):
-#    BACKEND = 'hdf5'
-#
-#class TestTensorflowCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.TensorflowMixin):
-#    BACKEND = 'hdf5'
-#    SHUFFLE = True
-#
-class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TensorflowMixin):
-    pass
+class TestTensorflowCreatedHdf5(BaseTestCreated, test_utils.TensorflowMixin):
+    BACKEND = 'hdf5'
 
-class TestTensorflowCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.TensorflowMixin):
+class TestTensorflowCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.TensorflowMixin):
+    BACKEND = 'hdf5'
+    SHUFFLE = True
+
+class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TensorflowMixin):
     pass
 
 #class TestTensorflowCreatedDataAug(BaseTestCreatedDataAug, test_utils.TensorflowMixin):
 #    TRAIN_EPOCHS = 2
+# @TODO(tzaman): enable augmentation for TF
 
 class TestTensorflowCreatedWideMultiStepLR(BaseTestCreatedWide, test_utils.TensorflowMixin):
     LR_POLICY = 'multistep'
@@ -1313,10 +1315,15 @@ class TestTensorflowLeNet(BaseTestCreated, test_utils.TensorflowMixin):
                 'standard-networks', 'tensorflow', 'lenet.py')
             ).read()
 
-    def test_inference_while_training(self):
-        # override parent method to skip this test as the reference
-        # model for LeNet uses CuDNN by default and it difficult to
-        # perform inference on a CuDNN-trained model without non-trivial
-        # model tweaking
-        # @TODO(tzaman): check this for tf
-        raise unittest.SkipTest('Tensorflow CPU inference on CuDNN-trained model not supported')
+class TestTensorflowLeNetSlim(BaseTestCreated, test_utils.TensorflowMixin):
+    IMAGE_WIDTH = 28
+    IMAGE_HEIGHT = 28
+    TRAIN_EPOCHS = 10
+
+    # standard lenet model will adjust to color
+    # or grayscale images
+    TENSORFLOW_NETWORK=open(
+            os.path.join(
+                os.path.dirname(digits.__file__),
+                'standard-networks', 'tensorflow', 'lenet_slim.py')
+            ).read()

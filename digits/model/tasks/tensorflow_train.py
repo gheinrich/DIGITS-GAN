@@ -138,7 +138,7 @@ class TensorflowTrainTask(TrainTask):
                 '--networkDirectory=%s' % self.job_dir,
                 '--save=%s' % self.job_dir,
                 '--snapshotPrefix=%s' % self.snapshot_prefix,
-                '--snapshotInterval=%d' % self.snapshot_interval,
+                '--snapshotInterval=%s' % self.snapshot_interval,
                 '--lr_base_rate=%s' % self.learning_rate,
                 '--lr_policy=%s' % str(self.lr_policy['policy'])
                 ]
@@ -152,7 +152,7 @@ class TensorflowTrainTask(TrainTask):
             args.append('--mean=%s' % self.dataset.path(mean_file))
 
         if hasattr(self.dataset, 'labels_file'):
-            args.append('--labels=%s' % self.dataset.path(self.dataset.labels_file))
+            args.append('--labels_list=%s' % self.dataset.path(self.dataset.labels_file))
 
         train_feature_db_path = self.dataset.get_feature_db_path(constants.TRAIN_DB)
         train_label_db_path = self.dataset.get_label_db_path(constants.TRAIN_DB)
@@ -472,7 +472,7 @@ class TensorflowTrainTask(TrainTask):
                 '--batch_size=1',
                 ]
         if hasattr(self.dataset, 'labels_file'):
-            args.append('--labels=%s' % self.dataset.path(self.dataset.labels_file))
+            args.append('--labels_list=%s' % self.dataset.path(self.dataset.labels_file))
 
         if self.use_mean != 'none':
             mean_file = self.dataset.get_mean_file()
@@ -532,7 +532,6 @@ class TensorflowTrainTask(TrainTask):
                             unrecognized_output.append(line)
                     else:
                         time.sleep(0.05)
-
         except Exception as e:
             if p.poll() is None:
                 p.terminate()
@@ -576,16 +575,15 @@ class TensorflowTrainTask(TrainTask):
             #    |  |- weights
             #    |- 2
             for layer_id,layer in vis_db['layers'].items():
-                #layer_desc = layer['name'][...].tostring()
                 op_name = layer.attrs['op']
                 var_name = layer.attrs['var']
                 layer_desc = "%s\n%s" % (op_name,var_name)
                 idx = int(layer_id)
-                # activations
+                # activations (tf: operation outputs)
                 if 'activations' in layer:
                     data = np.array(layer['activations'][...])
-                    # skip batch dimension
                     if len(data.shape)>1 and data.shape[0]==1:
+                        # skip batch dimension
                         data = data[0]
                     if len(data.shape) == 3:
                         data = data.transpose(2, 0, 1)
@@ -607,7 +605,7 @@ class TensorflowTrainTask(TrainTask):
                                                  }
                                              }
                                          )
-                # weights
+                # weights (tf: variables)
                 if 'weights' in layer:
                     data = np.array(layer['weights'][...])
                     if len(data.shape) == 3:
@@ -648,7 +646,7 @@ class TensorflowTrainTask(TrainTask):
         Arguments:
         data -- a np.ndarray
         """
-        # XXX These calculations can be super slow
+        # These calculations can be super slow
         mean = np.mean(data)
         std = np.std(data)
         y, x = np.histogram(data, bins=20)
@@ -714,7 +712,7 @@ class TensorflowTrainTask(TrainTask):
         if level in ['error', 'critical']:
             raise digits.inference.errors.InferenceError('%s classify %s task failed with error message - %s' % (self.get_framework_id(), test_category, message))
 
-        return True           # control never reach this line. It can be removed.
+        return False # control should never reach this line.
 
     @override
     def infer_many(self, data, snapshot_epoch=None, gpu=None, resize=True):
@@ -771,7 +769,7 @@ class TensorflowTrainTask(TrainTask):
                     ]
 
             if hasattr(self.dataset, 'labels_file'):
-                args.append('--labels=%s' % self.dataset.path(self.dataset.labels_file))
+                args.append('--labels_list=%s' % self.dataset.path(self.dataset.labels_file))
 
             if self.use_mean != 'none':
                 mean_file = self.dataset.get_mean_file()
@@ -817,7 +815,7 @@ class TensorflowTrainTask(TrainTask):
                             p.terminate()
                             raise digits.inference.errors.InferenceError('%s classify many task got aborted. error code - %d' % (self.get_framework_id(), p.returncode))
 
-                        if line is not None:
+                        if line is not None and len(line) > 1:
                             if not self.process_test_output(line, predictions, 'many'):
                                 self.logger.warning('%s classify many task unrecognized input: %s' % (self.get_framework_id(), line.strip()))
                                 unrecognized_output.append(line)

@@ -204,7 +204,7 @@ class TrainTask(Task):
                             data_cpu['cpu_pct'] = ps.get_cpu_percent(interval=1)
                             data_cpu['mem_pct'] = ps.get_memory_percent()
                             data_cpu['mem_used'] = ps.get_memory_info().rss
-                except psutil.NoSuchProcess:
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
                     # In rare case of instant process crash or PID went zombie (report nothing)
                     pass
 

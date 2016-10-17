@@ -57,9 +57,9 @@ class LRPolicy(object):
             self.stepvalues_list = []
 
         if (self.max_steps < len(self.stepvalues_list)):
-            logging.info("Maximum iterations (i.e., %s) is less than provided step values count (i.e, %s), so learning rate policy is reset to (%s) policy with the step value 1.", max_steps, len(stepvalues_list), step)
             self.policy = 'step'
             self.stepvalues_list[0] = 1
+            logging.info("Maximum iterations (i.e., %s) is less than provided step values count (i.e, %s), so learning rate policy is reset to (%s) policy with the step value (%s).", self.max_steps, len(self.stepvalues_list), self.policy, self.stepvalues_list[0])
         else:
             # Converting stepsize percentages into values
             for i in range(len(self.stepvalues_list)):

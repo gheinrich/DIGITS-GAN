@@ -102,6 +102,12 @@ return function(p)
 end
 """
 
+    TENSORFLOW_NETWORK = \
+"""
+def build_model(params):
+    @TODO(tzaman)
+"""
+
     @classmethod
     def model_exists(cls, job_id):
         return cls.job_exists(job_id, 'models')
@@ -127,7 +133,14 @@ end
 
     @classmethod
     def network(cls):
-        return cls.TORCH_NETWORK if cls.FRAMEWORK=='torch' else cls.CAFFE_NETWORK
+        if cls.FRAMEWORK=='torch':
+            return cls.TORCH_NETWORK
+        elif cls.FRAMEWORK=='caffe':
+            return cls.CAFFE_NETWORK
+        elif cls.FRAMEWORK=='tensorflow':
+            return cls.TENSORFLOW_NETWORK
+        else:
+            raise ValueError('Unknown framework %s' % cls.FRAMEWORK)
 
 class BaseViewsTestWithAnyDataset(BaseViewsTest):
     """
@@ -751,6 +764,18 @@ return function(p)
 end
 """
 
+    TENSORFLOW_NETWORK = \
+"""
+def build_model(params):
+    model = params['x']
+    def loss(y):
+        return digits.mse_loss(model, y)
+    return {
+        'model' : model,
+        'loss' : loss
+        }
+"""
+
     EXTENSION_ID = "image-processing"
     VARIABLE_SIZE_DATASET = False
     NUM_IMAGES = 100
@@ -1015,6 +1040,83 @@ class TestCaffeCreatedCropInNetwork(BaseTestCreatedCropInNetwork, test_utils.Caf
 class TestCaffeCreatedCropInForm(BaseTestCreatedCropInForm, test_utils.CaffeMixin):
     pass
 
+class TestSweepCreation(BaseViewsTestWithDataset, test_utils.CaffeMixin):
+    """
+    Model creation tests
+    """
+    def test_sweep(self):
+        job_ids = self.create_model(json=True, learning_rate='[0.01, 0.02]', batch_size='[8, 10]')
+        for job_id in job_ids:
+            assert self.model_wait_completion(job_id) == 'Done', 'create failed'
+            assert self.delete_model(job_id) == 200, 'delete failed'
+            assert not self.model_exists(job_id), 'model exists after delete'
+
+
+class TestAllInOneNetwork(BaseTestCreation, BaseTestCreated, test_utils.CaffeMixin):
+    """
+    Test an all-in-one network
+    """
+    CAFFE_NETWORK = \
+"""
+layer {
+  name: "train_data"
+  type: "Data"
+  top: "scaled_data"
+  transform_param {
+    scale: 0.004
+  }
+  include { phase: TRAIN }
+}
+layer {
+  name: "train_label"
+  type: "Data"
+  top: "label"
+  include { phase: TRAIN }
+}
+layer {
+  name: "val_data"
+  type: "Data"
+  top: "scaled_data"
+  transform_param {
+    scale: 0.004
+  }
+  include { phase: TEST }
+}
+layer {
+  name: "val_label"
+  type: "Data"
+  top: "label"
+  include { phase: TEST }
+}
+layer {
+  name: "scale"
+  type: "Power"
+  bottom: "data"
+  top: "scaled_data"
+  power_param {
+    scale: 0.004
+  }
+  include { stage: "deploy" }
+}
+layer {
+  name: "hidden"
+  type: "InnerProduct"
+  bottom: "scaled_data"
+  top: "output"
+  inner_product_param {
+    num_output: 2
+  }
+}
+layer {
+  name: "loss"
+  type: "EuclideanLoss"
+  bottom: "output"
+  bottom: "label"
+  top: "loss"
+  exclude { stage: "deploy" }
+}
+"""
+
 class TestTorchViews(BaseTestViews, test_utils.TorchMixin):
     pass
 
@@ -1136,79 +1238,3 @@ end
         assert output.shape == (1, self.CROP_SIZE, self.CROP_SIZE), \
                 'shape mismatch: %s' % str(output.shape)
 
-class TestSweepCreation(BaseViewsTestWithDataset, test_utils.CaffeMixin):
-    """
-    Model creation tests
-    """
-    def test_sweep(self):
-        job_ids = self.create_model(json=True, learning_rate='[0.01, 0.02]', batch_size='[8, 10]')
-        for job_id in job_ids:
-            assert self.model_wait_completion(job_id) == 'Done', 'create failed'
-            assert self.delete_model(job_id) == 200, 'delete failed'
-            assert not self.model_exists(job_id), 'model exists after delete'
-
-
-class TestAllInOneNetwork(BaseTestCreation, BaseTestCreated, test_utils.CaffeMixin):
-    """
-    Test an all-in-one network
-    """
-    CAFFE_NETWORK = \
-"""
-layer {
-  name: "train_data"
-  type: "Data"
-  top: "scaled_data"
-  transform_param {
-    scale: 0.004
-  }
-  include { phase: TRAIN }
-}
-layer {
-  name: "train_label"
-  type: "Data"
-  top: "label"
-  include { phase: TRAIN }
-}
-layer {
-  name: "val_data"
-  type: "Data"
-  top: "scaled_data"
-  transform_param {
-    scale: 0.004
-  }
-  include { phase: TEST }
-}
-layer {
-  name: "val_label"
-  type: "Data"
-  top: "label"
-  include { phase: TEST }
-}
-layer {
-  name: "scale"
-  type: "Power"
-  bottom: "data"
-  top: "scaled_data"
-  power_param {
-    scale: 0.004
-  }
-  include { stage: "deploy" }
-}
-layer {
-  name: "hidden"
-  type: "InnerProduct"
-  bottom: "scaled_data"
-  top: "output"
-  inner_product_param {
-    num_output: 2
-  }
-}
-layer {
-  name: "loss"
-  type: "EuclideanLoss"
-  bottom: "output"
-  bottom: "label"
-  top: "loss"
-  exclude { stage: "deploy" }
-}
-"""

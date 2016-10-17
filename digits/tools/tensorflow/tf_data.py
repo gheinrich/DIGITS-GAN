@@ -233,7 +233,7 @@ class LoaderFactory(object):
         self.mean_loader = mean_loader
 
     def get_shape(self):
-        input_shape = [self.width, self.height, self.channels]
+        input_shape = [self.height, self.width, self.channels]
         # update input_shape if crop length specified
         # this is necessary as the input_shape is provided
         # below to the user-defined function that defines the network
@@ -394,9 +394,9 @@ class LmdbLoader(LoaderFactory):
 
         self.unencoded_data_format = 'chw'
         self.unencoded_channel_scheme = 'bgr'
+
         # Set up the data loader
         self.lmdb_env = lmdb.open(self.db_path, readonly=True, lock=False)
-
         self.lmdb_txn = self.lmdb_env.begin(buffers=False)
         self.total = self.lmdb_txn.stat()['entries']
         self.keys = [key for key, _ in self.lmdb_txn.cursor()]
@@ -460,7 +460,7 @@ class LmdbLoader(LoaderFactory):
             val = lmdb_txn.get(key)
             datum = caffe_tf_pb2.Datum()
             datum.ParseFromString(val)
-            shape = np.array([datum.width, datum.height, datum.channels], dtype=np.int32)
+            shape = np.array([datum.height, datum.width, datum.channels], dtype=np.int32)
             if datum.float_data:
                 data = np.asarray(datum.float_data, dtype='float32')
             else:

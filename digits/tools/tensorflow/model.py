@@ -109,6 +109,7 @@ class Model(object):
             self.loss
 
     def create_model_from_template(self, network_template):
+        # @TODO(tzaman) maybe convert this to just return and call as lazy 'inference'
 
         # Load the parameters passed to the custom model
         model_params = {

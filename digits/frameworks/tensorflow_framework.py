@@ -144,7 +144,7 @@ class TensorflowFramework(Framework):
                 args.append('--mean=%s' % dataset.path(mean_file))
 
             if hasattr(dataset, 'labels_file'):
-                args.append('--labels=%s' % dataset.path(dataset.labels_file))
+                args.append('--labels_list=%s' % dataset.path(dataset.labels_file))
 
             train_feature_db_path = dataset.get_feature_db_path(constants.TRAIN_DB)
             train_label_db_path = dataset.get_label_db_path(constants.TRAIN_DB)

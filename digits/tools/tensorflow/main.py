@@ -56,7 +56,7 @@ tf.app.flags.DEFINE_integer('croplen', 0, """Crop (x and y). A zero value means 
 tf.app.flags.DEFINE_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
 tf.app.flags.DEFINE_string('inference_db', '', """Directory with inference file source""")
 tf.app.flags.DEFINE_integer('interval', 1, """Number of train epochs to complete, to perform one validation""")
-tf.app.flags.DEFINE_string('labels', '', """File containing label definitions""")
+tf.app.flags.DEFINE_string('labels_list', '', """Text file listing label definitions""")
 tf.app.flags.DEFINE_string('mean', '', """Mean image file""")
 tf.app.flags.DEFINE_float('momentum', '0.9', """Momentum""") # Not used by DIGITS front-end
 tf.app.flags.DEFINE_string('network', '', """File containing network (model)""")
@@ -65,7 +65,7 @@ tf.app.flags.DEFINE_string('optimization', 'sgd', """Optimization method""")
 tf.app.flags.DEFINE_string('save', 'results', """Save directory""")
 tf.app.flags.DEFINE_integer('seed', 0, """Fixed input seed for repeatable experiments""")
 tf.app.flags.DEFINE_boolean('shuffle', False, """Shuffle records before training""")
-tf.app.flags.DEFINE_integer('snapshotInterval', 1.0, """Specifies the training epochs to be completed before taking a snapshot""")
+tf.app.flags.DEFINE_float('snapshotInterval', 1.0, """Specifies the training epochs to be completed before taking a snapshot""")
 tf.app.flags.DEFINE_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
 tf.app.flags.DEFINE_string('subtractMean', 'none', """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
 tf.app.flags.DEFINE_string('train_db', '', """Directory with training file source""")
@@ -227,8 +227,10 @@ def save_weight_visualization(w_names, a_names, w, a):
         dset = db_layers.create_group(str(i))
         dset.attrs['var'] = w_names[i].name
         dset.attrs['op'] = a_names[i]
-        dset.create_dataset('weights', data=w[i])
-        dset.create_dataset('activations', data=a[i])
+        if w[i].shape:
+            dset.create_dataset('weights', data=w[i])
+        if a[i].shape:
+            dset.create_dataset('activations', data=a[i])
     vis_db.close()
 
 def Inference(sess, model):
@@ -236,7 +238,7 @@ def Inference(sess, model):
     Runs one inference (evaluation) epoch (all the files in the loader)
     """
 
-    if FLAGS.labels: # Classification -> assume softmax usage
+    if FLAGS.labels_list: # Classification -> assume softmax usage
         model.model = tf.nn.softmax(model.model)
 
     weight_vars = []
@@ -349,12 +351,12 @@ def main(_):
             
         classes = 0
         nclasses = 0
-        if FLAGS.labels:
-            logging.info("Loading label definitions from %s file", FLAGS.labels)
-            classes = loadLabels(FLAGS.labels)
+        if FLAGS.labels_list:
+            logging.info("Loading label definitions from %s file", FLAGS.labels_list)
+            classes = loadLabels(FLAGS.labels_list)
             nclasses = len(classes)
             if not classes:
-                logging.error("Reading labels file %s failed.", FLAGS.labels)
+                logging.error("Reading labels file %s failed.", FLAGS.labels_list)
                 exit(-1)
             logging.info("Found %s classes", nclasses)
 
@@ -521,7 +523,7 @@ def main(_):
                         last_validation_epoch = current_epoch
 
                     # Saving Snapshot
-                    if FLAGS.snapshotInterval and current_epoch >= next_snapshot_save:
+                    if FLAGS.snapshotInterval > 0 and current_epoch >= next_snapshot_save:
                         save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.serving_export)
 
                         # To find next nearest epoch value that exactly divisible by FLAGS.snapshotInterval
