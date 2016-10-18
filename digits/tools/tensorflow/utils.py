@@ -38,14 +38,17 @@ def constrastive_loss(lhs, rhs, y, margin=1.0):
     loss = (y * d) + ((1 - y) * tf.square(tf.maximum(margin - d_sqrt, 0)))
     return tf.reduce_mean(loss) # Note: constant component removed (/2)
 
+def classification_accuracy_top_n(pred, y, top_n):
+    single_acc_t = tf.nn.in_top_k(pred, y, top_n, name='accuracy_top_%d'%top_n)
+    return  tf.reduce_mean(tf.cast(single_acc_t, tf.float32))
 
 def classification_accuracy(pred, y):
     """
     Default definition of accuracy. Something is considered accurate if and only
     if a true label exactly matches the highest value in the prediction vector.
     """
-    correct_pred = tf.equal(y, tf.argmax(pred, 1), name='accuracy_single')
-    return tf.reduce_mean(tf.cast(correct_pred, tf.float32), name='accuracy_batch')
+    single_acc = tf.equal(y, tf.argmax(pred, 1), name='accuracy_single')
+    return tf.reduce_mean(tf.cast(single_acc, tf.float32), name='accuracy_batch')
 
 def nhwc_to_nchw(x):
     #x = tf.reshape(x, [1, 3, 4, 2])
