@@ -167,6 +167,8 @@ class BaseViewsTestWithDataset(BaseViewsTest,
     AUG_ROT = None
     AUG_SCALE = None
     AUG_NOISE = None
+    AUG_CONTRAST = None
+    AUG_WHITENING = None
     AUG_HSV_USE = None
     AUG_HSV_H = None
     AUG_HSV_S = None
@@ -227,6 +229,10 @@ class BaseViewsTestWithDataset(BaseViewsTest,
             data['aug_scale'] = cls.AUG_SCALE
         if cls.AUG_NOISE is not None:
             data['aug_noise'] = cls.AUG_NOISE
+        if cls.AUG_CONTRAST is not None:
+            data['aug_contrast'] = cls.AUG_CONTRAST
+        if cls.AUG_WHITENING is not None:
+            data['aug_whitening'] = cls.AUG_WHITENING
         if cls.AUG_HSV_USE is not None:
             data['aug_hsv_use'] = cls.AUG_HSV_USE
         if cls.AUG_HSV_H is not None:
@@ -1293,9 +1299,16 @@ class TestTensorflowCreatedTallHdf5Shuffle(BaseTestCreatedTall, test_utils.Tenso
 class TestTensorflowDatasetModelInteractions(BaseTestDatasetModelInteractions, test_utils.TensorflowMixin):
     pass
 
-#class TestTensorflowCreatedDataAug(BaseTestCreatedDataAug, test_utils.TensorflowMixin):
-#    TRAIN_EPOCHS = 2
-# @TODO(tzaman): enable augmentation for TF
+class TestTensorflowCreatedDataAug(BaseTestCreatedDataAug, test_utils.TensorflowMixin):
+    AUG_FLIP = 'fliplrud'
+    AUG_NOISE = 0.03
+    AUG_CONTRAST = 0.1
+    AUG_WHITENING = True
+    AUG_HSV_USE = True
+    AUG_HSV_H = 0.02
+    AUG_HSV_S = 0.04
+    AUG_HSV_V = 0.06
+    TRAIN_EPOCHS = 2
 
 class TestTensorflowCreatedWideMultiStepLR(BaseTestCreatedWide, test_utils.TensorflowMixin):
     LR_POLICY = 'multistep'

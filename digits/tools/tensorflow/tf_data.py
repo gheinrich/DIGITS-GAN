@@ -308,7 +308,7 @@ class LoaderFactory(object):
 
         # Mean Subtraction
         if self.mean_loader:
-            with tf.name_scope('mean subtraction'):
+            with tf.name_scope('mean_subtraction'):
                 single_data = self.mean_loader.subtract_mean_op(single_data)
                 if LOG_MEAN_FILE:
                     self.summaries.append(tf.image_summary('mean_image', tf.expand_dims(self.mean_loader.tf_mean_image, 0), max_images=1))
@@ -349,6 +349,8 @@ class LoaderFactory(object):
                      # closely resembles V - temporary until rewritten
                     single_data = tf.image.random_brightness(single_data, aug_hsv['v'], seed=self._seed)
 
+                # @TODO(tzaman) whitening is so invasive that we need a way to add it to the val/inf too in a 
+                # portable manner, like the mean file : how? If we don't find a way, don't use whitening.
                 aug_whitening = self.aug_dict['aug_whitening']
                 if aug_whitening:
                     # Subtract off its own mean and divide by the standard deviation of its own the pixels.
