@@ -171,6 +171,7 @@ class LoaderFactory(object):
         self.unencoded_data_format = 'whc'
         self.unencoded_channel_scheme = 'rgb'
         self.summaries = None
+        self.aug_dict = {}
 
         # @TODO(tzaman) rewrite this factory again
         pass
@@ -218,8 +219,9 @@ class LoaderFactory(object):
     def get_key_index(self, key):
         return self.keys.index(key)
 
-    def set_augmentation(self, mean_loader):
+    def set_augmentation(self, mean_loader, aug_dict={}):
         self.mean_loader = mean_loader
+        self.aug_dict = aug_dict
 
     def get_shape(self):
         input_shape = [self.height, self.width, self.channels]
@@ -304,25 +306,54 @@ class LoaderFactory(object):
         elif single_label is not None: # Not using a seperate label db; label is a scalar
             single_label = tf.reshape(single_label, [])
 
+        # Mean Subtraction
         if self.mean_loader:
-            single_data = self.mean_loader.subtract_mean_op(single_data)
-            if LOG_MEAN_FILE:
-                self.summaries.append(tf.image_summary('mean_image', tf.expand_dims(self.mean_loader.tf_mean_image, 0), max_images=1))
+            with tf.name_scope('mean subtraction'):
+                single_data = self.mean_loader.subtract_mean_op(single_data)
+                if LOG_MEAN_FILE:
+                    self.summaries.append(tf.image_summary('mean_image', tf.expand_dims(self.mean_loader.tf_mean_image, 0), max_images=1))
 
-        # @TODO(tzaman): augmentation here (cropping, etc)
-        with tf.name_scope('augment'):
-            if self.croplen:
+        # (Random) Cropping
+        if self.croplen:
+            with tf.name_scope('cropping'):
                 if self.stage == digits.STAGE_TRAIN:
                     single_data = tf.random_crop(single_data, [self.croplen, self.croplen, self.channels], seed=self._seed)
                 else : # Validation or Inference
                     single_data = tf.image.resize_image_with_crop_or_pad(single_data, self.croplen, self.croplen)
 
-        # single_data = tf.image.random_flip_left_right(single_data)
-        # single_data = tf.image.random_brightness(single_data, max_delta=50)
-        # single_data = tf.image.random_contrast(single_data, lower=0.3, upper=1.6)
+        # Data Augmentation
+        if self.aug_dict:
+            with tf.name_scope('augmentation'):
+                flipflag = self.aug_dict['aug_flip']
+                if  flipflag == 'fliplr' or flipflag == 'fliplrud':
+                    single_data = tf.image.random_flip_left_right(single_data, seed=self._seed)
+                if  flipflag == 'flipud' or flipflag == 'fliplrud':
+                    single_data = tf.image.random_flip_up_down(single_data, seed=self._seed)
 
-        # Subtract off the mean and divide by the variance of the pixels.
-        # single_data = tf.image.per_image_whitening(single_data) # converts to float
+                noise_std = self.aug_dict['aug_noise']
+                if noise_std > 0.:
+                    # Note the tf.random_normal requires a static shape
+                    single_data = tf.add(single_data, tf.random_normal(self.get_shape(), mean=0.0, stddev=noise_std, dtype=tf.float32, seed=self._seed, name='AWGN'))
+
+                contrast_fact = self.aug_dict['aug_contrast']
+                if contrast_fact > 0:
+                    single_data = tf.image.random_contrast(single_data, lower=1.-contrast_fact, upper=1.+contrast_fact, seed=self._seed)
+
+                # @TODO(tzaman): rewrite the below HSV stuff entirely in a TF PR to be done in one single operation
+                aug_hsv = self.aug_dict['aug_HSV']
+                if aug_hsv['h'] > 0.:
+                    single_data = tf.image.random_hue(single_data, aug_hsv['h'], seed=self._seed)
+                if aug_hsv['s'] > 0.:
+                    single_data = tf.image.random_saturation(single_data, 1-aug_hsv['s'], 1+aug_hsv['s'], seed=self._seed)
+                if aug_hsv['v'] > 0.:
+                     # closely resembles V - temporary until rewritten
+                    single_data = tf.image.random_brightness(single_data, aug_hsv['v'], seed=self._seed)
+
+                aug_whitening = self.aug_dict['aug_whitening']
+                if aug_whitening:
+                    # Subtract off its own mean and divide by the standard deviation of its own the pixels.
+                    with tf.name_scope('whitening'):
+                        single_data = tf.image.per_image_whitening(single_data) # N.B. also converts to float  
         
         max_queue_capacity = min(math.ceil(self.total * MIN_FRACTION_OF_EXAMPLES_IN_QUEUE), MAX_ABSOLUTE_EXAMPLES_IN_QUEUE)
         
@@ -476,10 +507,10 @@ class LmdbLoader(LoaderFactory):
         Returns:
             key, single_data, single_data_shape, single_label, single_label_shape
         """
-
-        key, value = self.reader.read(key_queue)
-        shape = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
-        return key, value, shape
+        key = key_queue.dequeue() #Operation that dequeues one key and returns a string with the key
+        py_func_return_type = [self.get_tf_data_type(), tf.int32, self.get_tf_label_type(), tf.int32]
+        d, ds, l, ls = tf.py_func(self.generate_data_op(), [key], py_func_return_type, name='data_reader')
+        return key, d, ds, l, ls
 
     def __del__(self):
         self.lmdb_env.close()
@@ -553,7 +584,6 @@ class FileListLoader(LoaderFactory):
         Returns:
             key, single_data, single_data_shape, single_label, single_label_shape
         """
-
         key, value = self.reader.read(key_queue)
         shape = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
         return key, value, shape # @TODO(tzaman) - Note: will only work for inferencing stage!
@@ -583,18 +613,12 @@ class TFRecordsLoader(LoaderFactory):
         for r in record_iter:
             self.total += 1
 
-        # Evaluate the last image (still visible in this scope)
-        with tf.Session() as sess_tmp:
-            single_ex = (sess_tmp.run(tf.parse_single_example(r,features={
-                'height': tf.FixedLenFeature([], tf.int64),
-                'width': tf.FixedLenFeature([], tf.int64),
-                'depth': tf.FixedLenFeature([], tf.int64),
-                'image_raw': tf.FixedLenFeature([], tf.string), #tf.VarLenFeature(tf.string)
-                'label': tf.FixedLenFeature([], tf.int64),
-            })))
-            self.channels = single_ex['depth']
-            self.height = single_ex['height']
-            self.width = single_ex['width']
+        example_proto = tf.train.Example()
+        example_proto.ParseFromString(r)
+
+        self.channels = example_proto.features.feature['depth'].int64_list.value[0]
+        self.height = example_proto.features.feature['height'].int64_list.value[0]
+        self.width = example_proto.features.feature['width'].int64_list.value[0]
 
         # Set up the reader
         # @TODO(tzaman) there's a filename queue because it can have multiple (sharded) tfrecord files (!)

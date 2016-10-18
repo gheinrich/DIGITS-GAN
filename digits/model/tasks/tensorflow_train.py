@@ -243,6 +243,28 @@ class TensorflowTrainTask(TrainTask):
         if self.pretrained_model:
             args.append('--weights=%s' % self.path(self.pretrained_model))
 
+        # Augmentations
+        assert self.data_aug['flip'] in ['none', 'fliplr', 'flipud', 'fliplrud'], 'Bad or unknown flag "flip"'
+        args.append('--augFlip=%s' % self.data_aug['flip'])
+
+        if self.data_aug['noise']:
+            args.append('--augNoise=%s' % self.data_aug['noise'])
+
+        if self.data_aug['contrast']:
+            args.append('--augContrast=%s' % self.data_aug['contrast'])
+
+        if self.data_aug['whitening']:
+            args.append('--augWhitening=1')
+
+        if self.data_aug['hsv_use']:
+            args.append('--augHSVh=%s' % self.data_aug['hsv_h'])
+            args.append('--augHSVs=%s' % self.data_aug['hsv_s'])
+            args.append('--augHSVv=%s' % self.data_aug['hsv_v'])
+        else:
+            args.append('--augHSVh=0')
+            args.append('--augHSVs=0')
+            args.append('--augHSVv=0')
+
         return args
 
     @override

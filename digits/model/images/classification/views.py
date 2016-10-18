@@ -265,6 +265,8 @@ def create():
             data_aug['rot']      = form.aug_rot.data
             data_aug['scale']    = form.aug_scale.data
             data_aug['noise']    = form.aug_noise.data
+            data_aug['contrast'] = form.aug_contrast.data
+            data_aug['whitening']= form.aug_whitening.data
             data_aug['hsv_use']  = form.aug_hsv_use.data
             data_aug['hsv_h']    = form.aug_hsv_h.data
             data_aug['hsv_s']    = form.aug_hsv_s.data

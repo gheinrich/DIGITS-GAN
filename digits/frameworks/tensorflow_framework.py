@@ -37,6 +37,7 @@ class TensorflowFramework(Framework):
     SUPPORTED_SOLVER_TYPES = ['SGD','ADADELTA','ADAGRAD','ADAGRADDA','MOMENTUM','ADAM','FTRL','RMSPROP']
 
     SUPPORTED_DATA_TRANSFORMATION_TYPES = ['MEAN_SUBTRACTION', 'CROPPING']
+    SUPPORTED_DATA_AUGMENTATION_TYPES = ['FLIPPING', 'NOISE', 'CONTRAST', 'WHITENING', 'HSV_SHIFTING']
 
     def __init__(self):
         super(TensorflowFramework, self).__init__()

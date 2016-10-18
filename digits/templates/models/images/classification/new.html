@@ -441,8 +441,8 @@ framework = {
     can_shuffle : '{{ fw.can_shuffle_data() }}'=='True',
     can_accumulate_gradients : '{{ fw.can_accumulate_gradients() }}'=='True',
     supports_python_layers_file : '{{ fw.supports_python_layers_file() }}'=='True',
-    data_aug_types : [{% for dttype in fw.SUPPORTED_DATA_TRANSFORMATION_TYPES %} '{{dttype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
-    data_trans_types : [{% for datype in fw.SUPPORTED_DATA_AUGMENTATION_TYPES %} '{{datype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
+    data_aug_types : [{% for dttype in fw.SUPPORTED_DATA_AUGMENTATION_TYPES %} '{{dttype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
+    data_trans_types : [{% for datype in fw.SUPPORTED_DATA_TRANSFORMATION_TYPES %} '{{datype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
     };
 frameworks['{{ fw.get_id() }}'] = framework;
 {% endfor %}
@@ -476,11 +476,12 @@ function setFramework(fwid)
     });
 
     // Hide the entire box including title when none is available
-    if (frameworks[fwid].data_aug_types.length)
+    if (frameworks[fwid].data_trans_types.length)
         $("#data-transformation").show();
     else
         $("#data-transformation").hide();
-    if (frameworks[fwid].data_trans_types.length)
+    
+    if (frameworks[fwid].data_aug_types.length)
         $("#data-augmentation").show();
     else
         $("#data-augmentation").hide();

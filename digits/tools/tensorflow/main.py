@@ -93,6 +93,15 @@ tf.app.flags.DEFINE_boolean('serving_export', False, """Flag for exporting an Te
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
+# Augmentation
+tf.app.flags.DEFINE_string('augFlip', 'none' , """The flipping options {none, fliplr, flipud, fliplrud} as random pre-processing augmentation""")
+tf.app.flags.DEFINE_float('augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
+tf.app.flags.DEFINE_float('augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution  as pre-processing  augmentation""")
+tf.app.flags.DEFINE_bool('augWhitening', False, """Performs per-image whitening by subtracting off its own mean and dividing by its own standard deviation.""")
+tf.app.flags.DEFINE_float('augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
+tf.app.flags.DEFINE_float('augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
+tf.app.flags.DEFINE_float('augHSVv', 0. , """The stddev of HSV's Value shift as pre-processing augmentation""")
+
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
     ctf = tl.generate_chrome_trace_format()
@@ -360,6 +369,19 @@ def main(_):
                 exit(-1)
             logging.info("Found %s classes", nclasses)
 
+        # Create a data-augmentation dict
+        aug_dict = {
+                'aug_flip' : FLAGS.augFlip,
+                'aug_noise' : FLAGS.augNoise,
+                'aug_contrast' : FLAGS.augContrast,
+                'aug_whitening' : FLAGS.augWhitening,
+                'aug_HSV' : {
+                    'h':FLAGS.augHSVh,
+                    's':FLAGS.augHSVs,
+                    'v':FLAGS.augHSVv,
+                },
+            }
+
         input_shape = []
 
         # Import the network file
@@ -373,7 +395,7 @@ def main(_):
             train_model = model.Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses)
             train_model.create_dataloader(FLAGS.train_db)
             train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
-            train_model.dataloader.set_augmentation(mean_loader)
+            train_model.dataloader.set_augmentation(mean_loader, aug_dict)
             train_model.init_dataloader()
             input_shape = train_model.dataloader.get_shape()
             train_model.create_model_from_template(network_template)
