@@ -15,7 +15,6 @@ from __future__ import print_function
 import functools
 import logging
 import tensorflow as tf
-from tensorflow.python.client import timeline, device_lib
 
 # Local imports
 import tf_data
@@ -38,14 +37,41 @@ def lazy_property(function):
         return getattr(self, attribute)
     return decorator
 
-def get_available_gpus():
-    """
-    Queries the CUDA GPU devices visible to Tensorflow.
-    Returns:
-        A list with tf-style gpu strings (f.e. ['/gpu:0', '/gpu:1'])
-    """
-    local_device_protos = device_lib.list_local_devices()
-    return [x.name for x in local_device_protos if x.device_type == 'GPU']
+# -- from https://github.com/tensorflow/tensorflow/blob/master/tensorflow/models/image/cifar10/cifar10_multi_gpu_train.py
+def average_gradients(tower_grads):
+  """Calculate the average gradient for each shared variable across all towers.
+  Note that this function provides a synchronization point across all towers.
+  Args:
+    tower_grads: List of lists of (gradient, variable) tuples. The outer list
+      is over individual gradients. The inner list is over the gradient
+      calculation for each tower.
+  Returns:
+     List of pairs of (gradient, variable) where the gradient has been averaged
+     across all towers.
+  """
+  average_grads = []
+  for grad_and_vars in zip(*tower_grads):
+    # Note that each grad_and_vars looks like the following:
+    #   ((grad0_gpu0, var0_gpu0), ... , (grad0_gpuN, var0_gpuN))
+    grads = []
+    for g, _ in grad_and_vars:
+      # Add 0 dimension to the gradients to represent the tower.
+      expanded_g = tf.expand_dims(g, 0)
+
+      # Append on a 'tower' dimension which we will average over below.
+      grads.append(expanded_g)
+
+    # Average over the 'tower' dimension.
+    grad = tf.concat(0, grads)
+    grad = tf.reduce_mean(grad, 0)
+
+    # Keep in mind that the Variables are redundant because they are shared
+    # across towers. So .. we will just return the first tower's pointer to
+    # the Variable.
+    v = grad_and_vars[0][1]
+    grad_and_var = (grad, v)
+    average_grads.append(grad_and_var)
+  return average_grads
 
 class Model(object):
     """
@@ -67,14 +93,12 @@ class Model(object):
         self.inference = None
         self.network_loss = None
 
-        self.feed_dict = {}
-
         # Define graph keys in tf convention
         self.GraphKeys = {}
         self.GraphKeys['QUEUE_RUNNERS'] = "queue_runner_" + self.stage
         self.GraphKeys['MODEL'] = "model_" + self.stage
-        self.GraphKeys['LOSS'] = "loss_" + self.stage
-        self.GraphKeys['LOSSES'] = "losses" + self.stage
+        self.GraphKeys['LOSS'] = "loss_" + self.stage # The name-scope
+        self.GraphKeys['LOSSES'] = "losses" + self.stage # The collection
         self.GraphKeys['LOADER'] = "data_" + self.stage
 
         # Special exception for summaries, as they need to be accesible to the user model
@@ -94,94 +118,116 @@ class Model(object):
         self.dataloader.nclasses = self.nclasses
 
     def init_dataloader(self):
-        with tf.name_scope(self.GraphKeys['LOADER']):
-            self.dataloader.create_input_pipeline()
+        with tf.device('/cpu:0'):
+            with tf.name_scope(self.GraphKeys['LOADER']):
+                self.dataloader.create_input_pipeline()
 
     def set_optimizer(self, optimization, momentum):
         self.optimization = optimization
         self.momentum = momentum
-
-    def initialize_graph(self):
-        """ This function initializes lazy functions in the model. This needs to be done
-        before the variables are initialized in tensorflow, otherwise there would be nothing
-        to initialize!
-        """
-        if self.stage == digits.STAGE_TRAIN:
-            # We only need to touch the train op, this will cascade down to the others
-            self.train
-        elif self.stage == digits.STAGE_VAL:
-            self.loss
+        # touch and initialize the optimizer and global_step
+        self.global_step
 
     def create_model_from_template(self, network_template):
-        # @TODO(tzaman) maybe convert this to just return and call as lazy 'inference'
 
-        # Load the parameters passed to the custom model
-        model_params = {
-            'x' : self.dataloader.batch_x,
-            'input_shape' : self.dataloader.get_shape(),
-            'nclasses' : self.nclasses,
-        }
+        available_devices = digits.get_available_gpus()
+        if not available_devices:
+            available_devices.append('/cpu:0')
+
+        # Split the batch over the batch dimension over the number of available gpu's
+        batch_x_split = tf.split(0, len(available_devices), self.dataloader.batch_x, name='split_batch')
+
+        if self.stage != digits.STAGE_INF:
+            # Inference never has labels
+            batch_y_split = tf.split(0, len(available_devices), self.dataloader.batch_y, name='split_batch')
 
         # Run the user model through the build_model function that should be filled in
-        with tf.name_scope(self.GraphKeys['MODEL']):
-            network = network_template(model_params)
+        grad_towers = []
+        for gpu_id, gpu_device in enumerate(available_devices):
+            with tf.device(gpu_device):
+                with tf.name_scope('tower_%d' % gpu_id) as scope_tower:
+                    with tf.name_scope(self.GraphKeys['MODEL']):
+                        # Load the parameters to be  passed to the custom user network definition
+                        model_params = {
+                            'x' : batch_x_split[gpu_id],
+                            'input_shape' : self.dataloader.get_shape(),
+                            'nclasses' : self.nclasses,
+                            'is_training' : self.stage == digits.STAGE_TRAIN,
+                        }
+
+                        user_network = network_template(model_params)
+
+                        # Perform checks
+                        if not user_network.has_key('model'):
+                            logging.error("Model definition required in model file but not supplied.")
+                            exit(-1)
+                        else: # Key exists, check type
+                            if 'tensorflow' not in str(type(user_network['model'])):
+                                logging.error("Model definition required in model is not a tf operation type, but is type(%s)", type(user_network['model']))
+                                exit(-1)
+
+                        if not user_network.has_key('loss'):
+                            logging.error("Loss function definition required in model file but not supplied.")
+                            exit(-1)
+                        else: # Key exists, check if callable
+                            if not callable(user_network['loss']):
+                                logging.error("Returned loss function should be a function, but is type(%s).", type(user_network['loss']))
+                                exit(-1)
+
+                        self.inference = user_network['model']
+                    
+                    if self.stage == digits.STAGE_INF:
+                        # For inferencing we will only use the inference part of the graph
+                        continue;
+
+                    with tf.name_scope(self.GraphKeys['LOSS']):
+                        
+                        loss_op = user_network['loss'](batch_y_split[gpu_id])
+
+                        tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
+                        #loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss')
+                        #tf.add_to_collection('losses', loss_op)
+
+                        # Assemble all made within this scope so far (f.e. including potential L2-loss from user model)
+                        total_tower_loss =tf.add_n(tf.get_collection(self.GraphKeys['LOSSES'], scope_tower), name='total_tower_loss')
+
+                        if len(available_devices) > 1:
+                            self._summaries.append(tf.scalar_summary('loss_t_%d' % gpu_id, total_tower_loss))
 
 
-            # Perform checks
-            if not network.has_key('model'):
-                logging.error("Model definition required in model file but not supplied.")
-                exit(-1)
-            else: # Key exists, check type
-                if 'tensorflow' not in str(type(network['model'])):
-                    logging.error("Model definition required in model is not a tf operation type, but is type(%s)", type(network['model']))
-                    exit(-1)
+                    # Reuse the variables in this scope for the next tower/device
+                    tf.get_variable_scope().reuse_variables()
 
-            if not network.has_key('loss'):
-                logging.error("Loss function definition required in model file but not supplied.")
-                exit(-1)
-            else: # Key exists, check if callable
-                if not callable(network['loss']):
-                    logging.error("Returned loss function should be a function, but is type(%s).", type(network['loss']))
-                    exit(-1)
+                    if self.stage == digits.STAGE_TRAIN:
+                        grad_tower = self.optimizer.compute_gradients(total_tower_loss)
+                        grad_towers.append(grad_tower)
 
-            # Note that the feed dicts of 'network_train' and 'network_val' are identical except
-            # for the mirrored one's suffix '_1'
-            if self.stage in digits.STAGE_TRAIN and network.has_key('feed_dict_train'):
-                # For Training
-                self.feed_dict = network['feed_dict_train']
-            elif self.stage not in digits.STAGE_TRAIN and network.has_key('feed_dict_val'):
-                # For Validation and Inference
-                self.feed_dict = network['feed_dict_val']
+        if self.stage != digits.STAGE_INF:
+            with tf.name_scope(self.GraphKeys['MODEL']):
+                self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']))/len(available_devices)))
 
-            self.inference = network['model']
-            self.network_loss = network['loss']
-
-    @lazy_property
-    def loss(self):
-        """
-        Make the loss function
-        """
-        with tf.name_scope(self.GraphKeys['LOSS']):
-            loss_op = self.network_loss(self.dataloader.batch_y)
-            tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
-            loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss')
-            self._summaries.append(tf.scalar_summary('loss', loss_op))
-            return loss_op
-
+        # Assemble and average the gradients from all towers
+        if self.stage == digits.STAGE_TRAIN:
+            if len(grad_towers) == 1:
+                grad_avg = grad_towers[0]
+            else:
+                grad_avg = average_gradients(grad_towers)
+            apply_gradient_op = self.optimizer.apply_gradients(grad_avg, global_step=self.global_step)
+            self.train = apply_gradient_op
 
     @lazy_property
     def summary(self):
         """
         Merge train summaries
         """
-        # @TODO(tzaman): add all summaries defined in this file explicitly not through the collection lines below
 
         # The below get_collection() commands retrieve any summaries that have been set by the user
         # in the model
         self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
-                                             scope=self.GraphKeys['MODEL'])
+                                             scope='.*'+self.GraphKeys['MODEL'])
         self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
-                                             scope=self.GraphKeys['LOSS'])
+                                             scope='.*'+self.GraphKeys['LOSS'])
+
         if not len(self._summaries):
             logging.error("No summaries defined. Please define at least one summary.")
             exit(-1)
@@ -228,34 +274,6 @@ class Model(object):
         else:
             logging.error("Invalid optimization flag %s", self.optimization)
             exit(-1)
-
-    @lazy_property
-    def train(self):
-
-        # Generate moving averages of all losses and associated summaries.
-        #loss_averages_op = add_loss_summaries(loss_op_train, '_train')
-
-        # Create optimizer, compute and apply gradients.
-        #with tf.control_dependencies([loss_averages_op]):
-
-        grads = self.optimizer.compute_gradients(self.loss)
-        apply_gradient_op = self.optimizer.apply_gradients(grads, global_step=self.global_step)
-
-        with tf.control_dependencies([apply_gradient_op]):
-            train_op = tf.no_op(name='train')
-
-        # TensorBoard
-        if OUTPUT_HISTOGRAM_SUMMARIES:
-            # Add histograms for gradients.
-            for grad, var in grads:
-                if grad is not None:
-                    self._summaries.append(tf.histogram_summary(var.op.name + '/gradients', grad))  
-            # Add histograms for trainable variables.
-            for var in tf.trainable_variables():
-                self._summaries.append(tf.histogram_summary(var.op.name, var))
-
-        return train_op
-
 
     def start_queue_runners(self, sess):
         logging.info('Starting queue runners (%s)', self.stage)

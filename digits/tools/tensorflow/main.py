@@ -304,7 +304,7 @@ def Inference(sess, model):
 
     try:
         while not model.queue_coord.should_stop():
-            keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, model.inference, [weight_vars], [activation_ops]], feed_dict=model.feed_dict)
+            keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, model.inference, [weight_vars], [activation_ops]])
 
             if FLAGS.visualize_inf:            
                 save_weight_visualization(weight_vars, activation_ops, w, a)
@@ -328,7 +328,7 @@ def Validation(sess, model, current_epoch):
     print_vals_sum = 0
     steps = 0
     while (steps * model.dataloader.batch_size) < model.dataloader.get_total():
-        summary_str = sess.run(model.summary, feed_dict=model.feed_dict)
+        summary_str = sess.run(model.summary)
         # Parse the summary
         tags, print_vals = summary_to_lists(summary_str)
         print_vals_sum = print_vals + print_vals_sum
@@ -443,9 +443,8 @@ def main(_):
             train_model.dataloader.set_augmentation(mean_loader, aug_dict)
             train_model.init_dataloader()
             input_shape = train_model.dataloader.get_shape()
-            train_model.create_model_from_template(network_template)
             train_model.set_optimizer(FLAGS.optimization, FLAGS.momentum)
-            train_model.initialize_graph()
+            train_model.create_model_from_template(network_template)
  
         if FLAGS.validation_db:
             val_model = model.Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
@@ -456,7 +455,6 @@ def main(_):
             if not input_shape:
                 input_shape = val_model.dataloader.get_shape()
             val_model.create_model_from_template(network_template)
-            val_model.initialize_graph()
 
         if FLAGS.inference_db:
             inf_model = model.Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
@@ -467,7 +465,6 @@ def main(_):
             if not input_shape:
                 input_shape = inf_model.dataloader.get_shape()
             inf_model.create_model_from_template(network_template)
-            inf_model.initialize_graph()
 
         # Start running operations on the Graph. allow_soft_placement must be set to
         # True to build towers on GPU, as some of the ops do not have GPU
@@ -507,11 +504,14 @@ def main(_):
             inf_model.start_queue_runners(sess)
             Inference(sess, inf_model)
 
+        start = time.time() # @TODO(tzaman) - removeme
+        
         ## Initial Forward Validation Pass
         if FLAGS.validation_db:
             val_model.start_queue_runners(sess)
             Validation(sess, val_model, 0)
 
+        
         if FLAGS.train_db:
             # epoch value will be calculated for every batch size. To maintain unique epoch value between batches, it needs to be rounded to the required number of significant digits.
             epoch_round = 0 # holds the required number of significant digits for round function.
@@ -552,8 +552,7 @@ def main(_):
                         run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE) # SOFTWARE_TRACE HARDWARE_TRACE FULL_TRACE
                         run_metadata = tf.RunMetadata()
 
-                    feed_dict = train_model.feed_dict
-                    feed_dict[train_model.learning_rate] = lrpolicy.get_learning_rate(step)
+                    feed_dict = {train_model.learning_rate: lrpolicy.get_learning_rate(step)}
 
                     _, summary_str, step = sess.run([train_model.train, train_model.summary, train_model.global_step],
                             feed_dict=feed_dict,
@@ -606,8 +605,10 @@ def main(_):
                 logging.info('Interrupt signal received.')
 
              # If required, perform final snapshot save
-            if FLAGS.epoch > last_snapshot_save_epoch:
+            if FLAGS.snapshotInterval > 0 and FLAGS.epoch > last_snapshot_save_epoch:
                 save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, FLAGS.epoch, FLAGS.serving_export)
+        
+        print('Training wall-time:', time.time()-start) # @TODO(tzaman) - removeme
 
         # If required, perform final Validation pass
         if FLAGS.validation_db and current_epoch >= next_validation:

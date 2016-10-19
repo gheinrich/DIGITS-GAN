@@ -1,7 +1,6 @@
 
 def build_model(params):
 
-    is_training = tf.placeholder(tf.bool, name='dropout_toggle')
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
     with slim.arg_scope([slim.conv2d, slim.fully_connected], 
                         weights_initializer=tf.contrib.layers.xavier_initializer(),
@@ -19,9 +18,9 @@ def build_model(params):
         
         model = slim.flatten(model)
         model = slim.fully_connected(model, 4096, activation_fn=None, scope='fc1')
-        model = slim.dropout(model, 0.5, is_training=is_training, scope='do1')
+        model = slim.dropout(model, 0.5, is_training=params['is_training'], scope='do1')
         model = slim.fully_connected(model, 4096, activation_fn=None, scope='fc2')
-        model = slim.dropout(model, 0.5, is_training=is_training, scope='do2')
+        model = slim.dropout(model, 0.5, is_training=params['is_training'], scope='do2')
         model = slim.fully_connected(model, params['nclasses'], activation_fn=None, scope='fc3')
 
     def loss(y):
@@ -35,6 +34,4 @@ def build_model(params):
     return {
         'model' : model,
         'loss' : loss,
-        'feed_dict_train' : {is_training: True},
-        'feed_dict_val' : {is_training: False}
         }

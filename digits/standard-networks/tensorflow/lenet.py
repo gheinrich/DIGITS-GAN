@@ -13,7 +13,7 @@ def build_model(params):
         return tf.nn.max_pool(x, ksize=[1, k, k, 1], strides=[1, s, s, 1], padding=padding)
 
     # Create model
-    def conv_net(x, weights, biases, dropout):
+    def conv_net(x, weights, biases):
         # Convolution Layer
         conv1 = conv2d(x, weights['wc1'], biases['bc1'], s=1, padding='VALID')
         # Max Pooling (down-sampling)
@@ -31,7 +31,8 @@ def build_model(params):
         fc1 = tf.nn.relu(fc1)
         
         # Apply Dropout
-        fc1 = tf.nn.dropout(fc1, dropout)
+        if params['is_training']:
+            fc1 = tf.nn.dropout(fc1, 0.5)
 
         # Output, class prediction
         out = tf.add(tf.matmul(fc1, weights['out']), biases['out'])
@@ -57,19 +58,15 @@ def build_model(params):
         'out': tf.get_variable('bout', [params['nclasses']], initializer=tf.constant_initializer(0.0))
     }
 
-    dropout_placeholder = tf.placeholder(tf.float32)
-
-    model = conv_net(params['x'], weights, biases, dropout_placeholder)
+    model = conv_net(params['x'], weights, biases)
 
     def loss(y):
         loss = digits.classification_loss(model, y)
         accuracy = digits.classification_accuracy(model, y)
-        tf.scalar_summary('accuracy', accuracy, collections=[digits.GraphKeys.SUMMARIES_VAL, digits.GraphKeys.SUMMARIES_TRAIN])
+        tf.scalar_summary(accuracy.op.name, accuracy, collections=[digits.GraphKeys.SUMMARIES_VAL, digits.GraphKeys.SUMMARIES_TRAIN])
         return loss
 
     return {
         'model' : model,
         'loss' : loss,
-        'feed_dict_train' : {dropout_placeholder: 0.75},
-        'feed_dict_val' : {dropout_placeholder: 1.}
         }

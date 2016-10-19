@@ -16,12 +16,12 @@ def build_model(params):
         return tf.nn.max_pool(x, ksize=[1, k, k, 1], strides=[1, s, s, 1], padding=padding)
 
     # Create model
-    def conv_net(x, weights, biases, dropout):
+    def conv_net(x, weights, biases):
         conv1 = conv2d(x, weights['wc1'], biases['bc1'], s=4, padding='SAME')
-        conv1 = tf.nn.local_response_normalization(conv1, depth_radius=2, alpha=2e-5, beta=0.75, bias=1.0)
+        #conv1 = tf.nn.local_response_normalization(conv1, depth_radius=2, alpha=2e-5, beta=0.75, bias=1.0)
         pool1 = maxpool2d(conv1, k=3, s=2)
         conv2 = conv2d(pool1, weights['wc2'], biases['bc2'], s=1, padding='SAME')
-        conv2 = tf.nn.local_response_normalization(conv2, depth_radius=2, alpha=2e-5, beta=0.75, bias=1.0)
+        #conv2 = tf.nn.local_response_normalization(conv2, depth_radius=2, alpha=2e-5, beta=0.75, bias=1.0)
         pool2 = maxpool2d(conv2, k=3, s=2)
         conv3 = conv2d(pool2, weights['wc3'], biases['bc3'], s=1, padding='SAME')
         conv4 = conv2d(conv3, weights['wc4'], biases['bc4'], s=1, padding='SAME')
@@ -33,14 +33,16 @@ def build_model(params):
         
         fc1 = tf.add(tf.matmul(flatten, weights['wd1']), biases['bd1'])
         fc1 = tf.nn.relu(fc1)
-        do1 = tf.nn.dropout(fc1, dropout)
+        if params['is_training']:
+            fc1 = tf.nn.dropout(fc1, 0.5)
 
-        fc2 = tf.add(tf.matmul(do1, weights['wd2']), biases['bd2'])
+        fc2 = tf.add(tf.matmul(fc1, weights['wd2']), biases['bd2'])
         fc2 = tf.nn.relu(fc2)
-        do2 = tf.nn.dropout(fc2, dropout)
+        if params['is_training']:
+            fc2 = tf.nn.dropout(fc2, 0.5)
         
         # Output, class prediction
-        out = tf.add(tf.matmul(do2, weights['out']), biases['out'])
+        out = tf.add(tf.matmul(fc2, weights['out']), biases['out'])
         return out
 
 
@@ -78,21 +80,17 @@ def build_model(params):
         'out': tf.get_variable('bout', [params['nclasses']], initializer=tf.constant_initializer(0.0))
     }
 
-    dropout_placeholder = tf.placeholder(tf.float32)
-
-    model = conv_net(params['x'], weights, biases, dropout_placeholder)
+    model = conv_net(params['x'], weights, biases)
 
     def loss(y):
         loss = digits.classification_loss(model, y)
         accuracy = digits.classification_accuracy(model, y)
         accuracy_top_5 = digits.classification_accuracy_top_n(model, y, 5)
-        tf.scalar_summary('accuracy', accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-        tf.scalar_summary('accuracy_top_5', accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+        tf.scalar_summary(accuracy.op.name, accuracy, collections=[digits.GraphKeys.SUMMARIES_VAL])
+        tf.scalar_summary(accuracy_top_5.op.name, accuracy_top_5, collections=[digits.GraphKeys.SUMMARIES_VAL])
         return loss
 
     return {
         'model' : model,
         'loss' : loss,
-        'feed_dict_train' : {dropout_placeholder: 0.5},
-        'feed_dict_val' : {dropout_placeholder: 1.}
         }

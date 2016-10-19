@@ -14,7 +14,7 @@ def build_model(params):
         y = tf.reshape(y, shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
         # For a fancy tensorboard summary: put the input, label and model side by side (sbs) for a fancy image summary:
         # sbs = tf.concat(2, [_x, y, model])
-        # tf.image_summary('sbs', sbs, max_images=3, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+        # tf.image_summary(sbs.op.name, sbs, max_images=3, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
         return digits.mse_loss(model, y)
 
     return {

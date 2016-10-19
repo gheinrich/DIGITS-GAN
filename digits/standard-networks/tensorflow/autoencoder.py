@@ -14,8 +14,8 @@ def build_model(params):
         model = tf.reshape(model, shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
 
     # The below image summary makes it very easy to review your result
-    tf.image_summary('x', _x, max_images=5, collections=[digits.GraphKeys.SUMMARIES_VAL])
-    tf.image_summary('model', model, max_images=5, collections=[digits.GraphKeys.SUMMARIES_VAL])
+    tf.image_summary(_x.op.name, _x, max_images=5, collections=[digits.GraphKeys.SUMMARIES_VAL])
+    tf.image_summary(model.op.name, model, max_images=5, collections=[digits.GraphKeys.SUMMARIES_VAL])
 
     def loss(y):
         return digits.mse_loss(model, _x)

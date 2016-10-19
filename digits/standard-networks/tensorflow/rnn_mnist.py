@@ -8,7 +8,7 @@ def build_model(params):
     
     x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
     
-    tf.image_summary('x', x, max_images=1, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    tf.image_summary(x.op.name, x, max_images=1, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
     x = tf.squeeze(x)
     
     
@@ -44,7 +44,7 @@ def build_model(params):
     def loss(y):
         loss = digits.classification_loss(model, y)
         accuracy = digits.classification_accuracy(model, y)
-        tf.scalar_summary('accuracy', accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+        tf.scalar_summary(accuracy.op.name, accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
         return loss
 
     return {

@@ -1,11 +1,11 @@
 def build_model(params):
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
-    #tf.image_summary('input', _x, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    #tf.image_summary(_x.op.name, _x, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
 
     # Split out the color channels
     _, model_g, model_b = tf.split(3, 3, _x, name='split_channels')
-    #tf.image_summary('g', model_g, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-    #tf.image_summary('b', model_b, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    #tf.image_summary(model_g.op.name, model_g, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    #tf.image_summary(model_b.op.name, model_b, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
 
     with slim.arg_scope([slim.conv2d, slim.fully_connected], 
             weights_initializer=tf.contrib.layers.xavier_initializer(),

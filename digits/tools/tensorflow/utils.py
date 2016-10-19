@@ -9,6 +9,7 @@ Digits default Tensorflow Ops as helper functions.
 """
 
 import tensorflow as tf
+from tensorflow.python.client import timeline, device_lib
 
 STAGE_TRAIN = 'train'
 STAGE_VAL = 'val'
@@ -39,16 +40,16 @@ def constrastive_loss(lhs, rhs, y, margin=1.0):
     return tf.reduce_mean(loss) # Note: constant component removed (/2)
 
 def classification_accuracy_top_n(pred, y, top_n):
-    single_acc_t = tf.nn.in_top_k(pred, y, top_n, name='accuracy_top_%d'%top_n)
-    return  tf.reduce_mean(tf.cast(single_acc_t, tf.float32))
+    single_acc_t = tf.nn.in_top_k(pred, y, top_n)
+    return  tf.reduce_mean(tf.cast(single_acc_t, tf.float32), name='accuracy_top_%d'%top_n)
 
 def classification_accuracy(pred, y):
     """
     Default definition of accuracy. Something is considered accurate if and only
     if a true label exactly matches the highest value in the prediction vector.
     """
-    single_acc = tf.equal(y, tf.argmax(pred, 1), name='accuracy_single')
-    return tf.reduce_mean(tf.cast(single_acc, tf.float32), name='accuracy_batch')
+    single_acc = tf.equal(y, tf.argmax(pred, 1))
+    return tf.reduce_mean(tf.cast(single_acc, tf.float32), name='accuracy')
 
 def nhwc_to_nchw(x):
     #x = tf.reshape(x, [1, 3, 4, 2])
@@ -71,3 +72,12 @@ def bgr_to_rgb(x):
 
 def rgb_to_bgr(x):
     return tf.reverse(x, [False, False, True])
+
+def get_available_gpus():
+    """
+    Queries the CUDA GPU devices visible to Tensorflow.
+    Returns:
+        A list with tf-style gpu strings (f.e. ['/gpu:0', '/gpu:1'])
+    """
+    local_device_protos = device_lib.list_local_devices()
+    return [x.name for x in local_device_protos if x.device_type == 'GPU']

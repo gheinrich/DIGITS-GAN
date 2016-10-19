@@ -1,6 +1,6 @@
 def build_model(params):
     _x = tf.reshape(params['x'], shape=[-1, params['input_shape'][0], params['input_shape'][1], params['input_shape'][2]])
-    #tf.image_summary('input', _x, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+    #tf.image_summary(_x.op.name, _x, max_images=10, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
 
     # Split out the channel in two
     lhs, rhs = tf.split(0, 2, _x, name='split_batch')
