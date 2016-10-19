@@ -15,10 +15,14 @@ from __future__ import print_function
 import functools
 import logging
 import tensorflow as tf
+from tensorflow.python.client import timeline, device_lib
 
 # Local imports
 import tf_data
 import utils as digits
+
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO)
 
 # Constants
 OUTPUT_HISTOGRAM_SUMMARIES = False # Very heavy for the CPU
@@ -60,7 +64,7 @@ class Model(object):
         self.queue_threads = None
 
         self._summaries = []
-        self.model = None
+        self.inference = None
         self.network_loss = None
 
         self.feed_dict = {}
@@ -115,25 +119,33 @@ class Model(object):
         model_params = {
             'x' : self.dataloader.batch_x,
             'input_shape' : self.dataloader.get_shape(),
-            'nclasses' : self.nclasses, 
+            'nclasses' : self.nclasses,
         }
 
         # Run the user model through the build_model function that should be filled in
         with tf.name_scope(self.GraphKeys['MODEL']):
             network = network_template(model_params)
 
+
             # Perform checks
             if not network.has_key('model'):
                 logging.error("Model definition required in model file but not supplied.")
                 exit(-1)
+            else: # Key exists, check type
+                if 'tensorflow' not in str(type(network['model'])):
+                    logging.error("Model definition required in model is not a tf operation type, but is type(%s)", type(network['model']))
+                    exit(-1)
+
             if not network.has_key('loss'):
                 logging.error("Loss function definition required in model file but not supplied.")
                 exit(-1)
-            if not callable(network['loss']):
-                logging.error("Returned loss function should be a function, but is a: (%s)." % type(network['loss']))
-                exit(-1)
+            else: # Key exists, check if callable
+                if not callable(network['loss']):
+                    logging.error("Returned loss function should be a function, but is type(%s).", type(network['loss']))
+                    exit(-1)
 
-            # Note that the feed dicts of 'network_train' and 'network_val' are identical except for the mirrored one's suffix '_1'
+            # Note that the feed dicts of 'network_train' and 'network_val' are identical except
+            # for the mirrored one's suffix '_1'
             if self.stage in digits.STAGE_TRAIN and network.has_key('feed_dict_train'):
                 # For Training
                 self.feed_dict = network['feed_dict_train']
@@ -141,7 +153,7 @@ class Model(object):
                 # For Validation and Inference
                 self.feed_dict = network['feed_dict_val']
 
-            self.model = network['model']
+            self.inference = network['model']
             self.network_loss = network['loss']
 
     @lazy_property
@@ -152,9 +164,9 @@ class Model(object):
         with tf.name_scope(self.GraphKeys['LOSS']):
             loss_op = self.network_loss(self.dataloader.batch_y)
             tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
-            loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss_'+self.stage)
+            loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss')
             self._summaries.append(tf.scalar_summary('loss', loss_op))
-            return loss_op     
+            return loss_op
 
 
     @lazy_property
@@ -164,9 +176,12 @@ class Model(object):
         """
         # @TODO(tzaman): add all summaries defined in this file explicitly not through the collection lines below
 
-        # The below get_collection() commands retrieve any summaries that have been set by the user in the model
-        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'], scope=self.GraphKeys['MODEL'])
-        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'], scope=self.GraphKeys['LOSS'])
+        # The below get_collection() commands retrieve any summaries that have been set by the user
+        # in the model
+        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
+                                             scope=self.GraphKeys['MODEL'])
+        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
+                                             scope=self.GraphKeys['LOSS'])
         if not len(self._summaries):
             logging.error("No summaries defined. Please define at least one summary.")
             exit(-1)
@@ -176,7 +191,8 @@ class Model(object):
     def global_step(self):
         # Force global_step on the CPU, becaues the GPU's first step will end at 0 instead of 1.
         with tf.device('/cpu:0'):
-            return tf.get_variable('global_step', [], initializer=tf.constant_initializer(0), trainable=False)
+            return tf.get_variable('global_step', [], initializer=tf.constant_initializer(0),
+                                   trainable=False)
 
     @lazy_property
     def learning_rate(self):
@@ -197,18 +213,21 @@ class Model(object):
         elif self.optimization == 'adagrad':
             return tf.train.AdagradOptimizer(learning_rate=self.learning_rate)
         elif self.optimization == 'adagradda':
-            return tf.train.AdagradDAOptimizer(learning_rate=self.learning_rate, global_step=self.global_step)
+            return tf.train.AdagradDAOptimizer(learning_rate=self.learning_rate,
+                                               global_step=self.global_step)
         elif self.optimization == 'momentum':
-            return tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=self.momentum)
+            return tf.train.MomentumOptimizer(learning_rate=self.learning_rate,
+                                              momentum=self.momentum)
         elif self.optimization == 'adam':
             return tf.train.AdamOptimizer(learning_rate=self.learning_rate)
         elif self.optimization == 'ftrl':
             return tf.train.FtrlOptimizer(learning_rate=self.learning_rate)
         elif self.optimization == 'rmsprop':
-            return tf.train.RMSPropOptimizer(learning_rate=self.learning_rate, momentum=self.momentum)
+            return tf.train.RMSPropOptimizer(learning_rate=self.learning_rate,
+                                             momentum=self.momentum)
         else:
             logging.error("Invalid optimization flag %s", self.optimization)
-            exit(-1) 
+            exit(-1)
 
     @lazy_property
     def train(self):
@@ -239,16 +258,18 @@ class Model(object):
 
 
     def start_queue_runners(self, sess):
-        logging.info('Starting queue runners (%s)' % self.stage)
+        logging.info('Starting queue runners (%s)', self.stage)
         # Distinguish the queue runner collection (for easily obtaining them by collection key)
         queue_runners = tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS)
         for qr in queue_runners:
             if self.stage in qr.name:
                 tf.add_to_collection(self.GraphKeys['QUEUE_RUNNERS'], qr)
-        
+
         self.queue_coord = tf.train.Coordinator()
-        self.queue_threads = tf.train.start_queue_runners(sess=sess, coord=self.queue_coord, collection=self.GraphKeys['QUEUE_RUNNERS'])
-        logging.info('Queue runners started (%s)' % self.stage)
+        self.queue_threads = tf.train.start_queue_runners(sess=sess, coord=self.queue_coord,
+                                                          collection=self.GraphKeys['QUEUE_RUNNERS']
+                                                         )
+        logging.info('Queue runners started (%s)', self.stage)
 
     def __del__(self):
         # Destructor
@@ -256,27 +277,3 @@ class Model(object):
             # Close and terminate the queues
             self.queue_coord.request_stop()
             self.queue_coord.join(self.queue_threads)
-
-#def add_loss_summaries(total_loss, name_suffix=''):
-#    """Add summaries for losses in the model.
-#    Generates moving average for all losses and associated summaries for
-#    visualizing the performance of the network.
-#    Args:
-#    total_loss: Total loss from loss().
-#    Returns:
-#    loss_averages_op: op for generating moving averages of losses.
-#    """
-#    # Compute the moving average of all individual losses and the total loss.
-#    loss_averages = tf.train.ExponentialMovingAverage(0.9, name='avg')
-#    losses = tf.get_collection('losses'+name_suffix)
-#    loss_averages_op = loss_averages.apply(losses + [total_loss])
-#
-#    # Attach a scalar summary to all individual losses and the total loss; do the
-#    # same for the averaged version of the losses.
-#    for l in losses + [total_loss]:
-#        # Name each loss as '(raw)' and name the moving average version of the loss
-#        # as the original loss name.
-#        tf.scalar_summary(l.op.name +' (raw)', l, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-#        tf.scalar_summary(l.op.name, loss_averages.average(l), collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-#
-#    return loss_averages_op

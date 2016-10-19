@@ -35,16 +35,17 @@ LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 
 # Supported extensions for Loaders
 DB_EXTENSIONS = {
-        'hdf5': ['.H5', '.HDF5'],
-        'lmdb': ['.MDB','.LMDB'],
-        'tfrecords' :['.TFRECORDS'],
-        'filelist': ['.TXT'],
-        'file': ['.JPG','.JPEG','.PNG'],
-        }
+    'hdf5': ['.H5', '.HDF5'],
+    'lmdb': ['.MDB', '.LMDB'],
+    'tfrecords' :['.TFRECORDS'],
+    'filelist': ['.TXT'],
+    'file': ['.JPG', '.JPEG', '.PNG'],
+}
 
 LIST_DELIMITER = ' ' # For the FILELIST format
 
-logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO)
 
 def get_backend_of_source(db_path):
     """
@@ -516,7 +517,6 @@ class LmdbLoader(LoaderFactory):
 
     def __del__(self):
         self.lmdb_env.close()
-
 
 class FileListLoader(LoaderFactory):
     """ The FileListLoader loads files from a list of string(s) pointing to (a) file(s).

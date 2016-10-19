@@ -17,7 +17,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from six.moves import xrange  # pylint: disable=redefined-builtin
+import time
 
 import datetime
 import json
@@ -25,14 +25,14 @@ import logging
 import math
 import numpy as np
 import os
-import re
+from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
+import tensorflow.contrib.slim as slim # pylint: disable=unused-import
 from tensorflow.python.client import timeline, device_lib
 from tensorflow.python.ops import template
 from tensorflow.python.lib.io import file_io
 from tensorflow.core.framework import summary_pb2
-import time
+
 
 # Local imports
 import utils as digits
@@ -44,18 +44,19 @@ import tf_data
 TF_NUM_THREADS = 6
 MIN_LOGS_PER_TRAIN_EPOCH = 8 # torch default: 8
 
-logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
-#logging.getLogger("tensorflow").setLevel(logging.ERROR)
-#tf.logging.set_verbosity(tf.logging.ERROR)
+logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S',
+                    level=logging.INFO)
 
 FLAGS = tf.app.flags.FLAGS
 
 # Basic model parameters. #float, integer, boolean, string
 tf.app.flags.DEFINE_integer('batch_size', 16, """Number of images to process in a batch""")
-tf.app.flags.DEFINE_integer('croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
+tf.app.flags.DEFINE_integer(
+    'croplen', 0, """Crop (x and y). A zero value means no cropping will be applied""")
 tf.app.flags.DEFINE_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
 tf.app.flags.DEFINE_string('inference_db', '', """Directory with inference file source""")
-tf.app.flags.DEFINE_integer('interval', 1, """Number of train epochs to complete, to perform one validation""")
+tf.app.flags.DEFINE_integer(
+    'interval', 1, """Number of train epochs to complete, to perform one validation""")
 tf.app.flags.DEFINE_string('labels_list', '', """Text file listing label definitions""")
 tf.app.flags.DEFINE_string('mean', '', """Mean image file""")
 tf.app.flags.DEFINE_float('momentum', '0.9', """Momentum""") # Not used by DIGITS front-end
@@ -65,42 +66,78 @@ tf.app.flags.DEFINE_string('optimization', 'sgd', """Optimization method""")
 tf.app.flags.DEFINE_string('save', 'results', """Save directory""")
 tf.app.flags.DEFINE_integer('seed', 0, """Fixed input seed for repeatable experiments""")
 tf.app.flags.DEFINE_boolean('shuffle', False, """Shuffle records before training""")
-tf.app.flags.DEFINE_float('snapshotInterval', 1.0, """Specifies the training epochs to be completed before taking a snapshot""")
+tf.app.flags.DEFINE_float(
+    'snapshotInterval', 1.0,
+    """Specifies the training epochs to be completed before taking a snapshot""")
 tf.app.flags.DEFINE_string('snapshotPrefix', '', """Prefix of the weights/snapshots""")
-tf.app.flags.DEFINE_string('subtractMean', 'none', """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
+tf.app.flags.DEFINE_string(
+    'subtractMean', 'none',
+    """Select mean subtraction method. Possible values are 'image', 'pixel' or 'none'""")
 tf.app.flags.DEFINE_string('train_db', '', """Directory with training file source""")
-tf.app.flags.DEFINE_string('train_labels', '', """Directory with an optional and seperate labels file source for training""")
+tf.app.flags.DEFINE_string(
+    'train_labels', '',
+    """Directory with an optional and seperate labels file source for training""")
 tf.app.flags.DEFINE_string('type', 'cpu', """Hardware acceleration: (cpu, gpu)""")
 tf.app.flags.DEFINE_string('validation_db', '', """Directory with validation file source""")
-tf.app.flags.DEFINE_string('validation_labels', '', """Directory with an optional and seperate labels file source for validation""")
-tf.app.flags.DEFINE_string('visualizeModelPath', '', """Constructs the current model for visualization""")
-tf.app.flags.DEFINE_boolean('visualize_inf', False, """Will output weights and activations for an inference job.""")
-tf.app.flags.DEFINE_string('weights', '', """Filename for weights of a model to use for fine-tuning""")
+tf.app.flags.DEFINE_string(
+    'validation_labels', '',
+    """Directory with an optional and seperate labels file source for validation""")
+tf.app.flags.DEFINE_string(
+    'visualizeModelPath', '', """Constructs the current model for visualization""")
+tf.app.flags.DEFINE_boolean(
+    'visualize_inf', False, """Will output weights and activations for an inference job.""")
+tf.app.flags.DEFINE_string(
+    'weights', '', """Filename for weights of a model to use for fine-tuning""")
 
-tf.app.flags.DEFINE_integer('bitdepth', 8, """Specifies an image's bitdepth""") # @TODO(tzaman): is this in line with the DIGITS team?
+ # @TODO(tzaman): is the bitdepth in line with the DIGITS team?
+tf.app.flags.DEFINE_integer('bitdepth', 8, """Specifies an image's bitdepth""")
 
 # @TODO(tzaman); remove torch mentions below
 tf.app.flags.DEFINE_float('lr_base_rate', '0.01', """Learning rate""")
-tf.app.flags.DEFINE_string('lr_policy', 'fixed', """Learning rate policy. (fixed, step, exp, inv, multistep, poly, sigmoid)""")
-tf.app.flags.DEFINE_float('lr_gamma', -1, """Required to calculate learning rate. Applies to: (step, exp, inv, multistep, sigmoid)""")
-tf.app.flags.DEFINE_float('lr_power', float('Inf'), """Required to calculate learning rate. Applies to: (inv, poly)""")
-tf.app.flags.DEFINE_string('lr_stepvalues', '', """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid). For the 'multistep' lr_policy you can input multiple values seperated by commas""")
+tf.app.flags.DEFINE_string(
+    'lr_policy', 'fixed',
+    """Learning rate policy. (fixed, step, exp, inv, multistep, poly, sigmoid)""")
+tf.app.flags.DEFINE_float(
+    'lr_gamma', -1,
+    """Required to calculate learning rate. Applies to: (step, exp, inv, multistep, sigmoid)""")
+tf.app.flags.DEFINE_float(
+    'lr_power', float('Inf'),
+    """Required to calculate learning rate. Applies to: (inv, poly)""")
+tf.app.flags.DEFINE_string(
+    'lr_stepvalues', '',
+    """Required to calculate stepsize of the learning rate. Applies to: (step, multistep, sigmoid).
+    For the 'multistep' lr_policy you can input multiple values seperated by commas""")
 
 # Tensorflow-unique arguments for DIGITS
-tf.app.flags.DEFINE_string('save_vars', 'all', """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
-tf.app.flags.DEFINE_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""") 
-tf.app.flags.DEFINE_boolean('serving_export', False, """Flag for exporting an Tensorflow Serving model""")
+tf.app.flags.DEFINE_string(
+    'save_vars', 'all',
+    """Sets the collection of variables to be saved: 'all' or only 'trainable'.""")
+tf.app.flags.DEFINE_string('summaries_dir', '', """Directory of Tensorboard Summaries (logdir)""")
+tf.app.flags.DEFINE_boolean(
+    'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
-tf.app.flags.DEFINE_integer('log_runtime_stats_per_step', 0, """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
+tf.app.flags.DEFINE_integer(
+    'log_runtime_stats_per_step', 0,
+    """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
 # Augmentation
-tf.app.flags.DEFINE_string('augFlip', 'none' , """The flipping options {none, fliplr, flipud, fliplrud} as random pre-processing augmentation""")
-tf.app.flags.DEFINE_float('augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
-tf.app.flags.DEFINE_float('augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution  as pre-processing  augmentation""")
-tf.app.flags.DEFINE_bool('augWhitening', False, """Performs per-image whitening by subtracting off its own mean and dividing by its own standard deviation.""")
-tf.app.flags.DEFINE_float('augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
-tf.app.flags.DEFINE_float('augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
-tf.app.flags.DEFINE_float('augHSVv', 0. , """The stddev of HSV's Value shift as pre-processing augmentation""")
+tf.app.flags.DEFINE_string(
+    'augFlip', 'none',
+    """The flip options {none, fliplr, flipud, fliplrud} as randompre-processing augmentation""")
+tf.app.flags.DEFINE_float(
+    'augNoise', 0., """The stddev of Noise in AWGN as pre-processing augmentation""")
+tf.app.flags.DEFINE_float(
+    'augContrast', 0., """The contrast factor's bounds as sampled from a random-uniform distribution
+     as pre-processing  augmentation""")
+tf.app.flags.DEFINE_bool(
+    'augWhitening', False, """Performs per-image whitening by subtracting off its own mean and
+    dividing by its own standard deviation.""")
+tf.app.flags.DEFINE_float(
+    'augHSVh', 0., """The stddev of HSV's Hue shift as pre-processing  augmentation""")
+tf.app.flags.DEFINE_float(
+    'augHSVs', 0., """The stddev of HSV's Saturation shift as pre-processing  augmentation""")
+tf.app.flags.DEFINE_float(
+    'augHSVv', 0., """The stddev of HSV's Value shift as pre-processing augmentation""")
 
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
@@ -176,8 +213,9 @@ def dump(obj):
         print("obj.%s = %s" % (attr, getattr(obj, attr)))
 
 def load_snapshot(sess, weight_path, var_candidates):
-    logging.info("Loading weights from pretrained model - %s ", weight_path )
-    ckpt = tf.train.get_checkpoint_state(weight_path)
+    """ Loads a snapshot into a session from a weight path. Will only load the
+    weights that are both in the weight_path file and the passed var_candidates."""
+    logging.info("Loading weights from pretrained model - %s ", weight_path)
     reader = tf.train.NewCheckpointReader(weight_path)
     var_map = reader.get_variable_to_shape_map()
 
@@ -210,8 +248,7 @@ def save_snapshot(sess, saver, save_dir, snapshot_prefix, epoch, for_serving=Fal
         logging.error('NotImplementedError: Tensorflow-Serving support.')
         exit(-1)
 
-    # @TODO(tzaman): save the graph itself only once
-    # Past this point the graph shouldn't be changed.
+    # Past this point the graph shouldn't be changed, so saving it once is enough
     filename_graph = os.path.join(save_dir, snapshot_prefix + '.graph_def')
     if not os.path.isfile(filename_graph):
         with open(filename_graph, 'wb') as f:
@@ -231,7 +268,7 @@ def save_weight_visualization(w_names, a_names, w, a):
     vis_db = h5py.File(fn, 'w')
     db_layers = vis_db.create_group("layers")
 
-    logging.info('Saving visualization to %s' % fn)
+    logging.info('Saving visualization to %s', fn)
     for i in range(0,len(w)):
         dset = db_layers.create_group(str(i))
         dset.attrs['var'] = w_names[i].name
@@ -248,7 +285,8 @@ def Inference(sess, model):
     """
 
     if FLAGS.labels_list: # Classification -> assume softmax usage
-        model.model = tf.nn.softmax(model.model)
+        # Append a softmax op
+        model.inference = tf.nn.softmax(model.inference)
 
     weight_vars = []
     activation_ops = []
@@ -266,7 +304,7 @@ def Inference(sess, model):
 
     try:
         while not model.queue_coord.should_stop():
-            keys, preds, [w], [a]  = sess.run([model.dataloader.batch_k, model.model, [weight_vars], [activation_ops]], feed_dict=model.feed_dict)
+            keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, model.inference, [weight_vars], [activation_ops]], feed_dict=model.feed_dict)
 
             if FLAGS.visualize_inf:            
                 save_weight_visualization(weight_vars, activation_ops, w, a)
@@ -279,7 +317,7 @@ def Inference(sess, model):
     except tf.errors.OutOfRangeError:
         print('Done: tf.errors.OutOfRangeError')    
 
-def Validation(sess, model, writer, current_epoch):
+def Validation(sess, model, current_epoch):
     """
     Runs one validation epoch.
     """
@@ -291,11 +329,9 @@ def Validation(sess, model, writer, current_epoch):
     steps = 0
     while (steps * model.dataloader.batch_size) < model.dataloader.get_total():
         summary_str = sess.run(model.summary, feed_dict=model.feed_dict)
-        #writer.add_summary(summary_str, step)
         # Parse the summary
         tags, print_vals = summary_to_lists(summary_str)
         print_vals_sum = print_vals + print_vals_sum
-
         steps += 1
 
     print_list = print_summarylist(tags, print_vals_sum/steps)
@@ -387,6 +423,15 @@ def main(_):
         # Import the network file
         path_network = os.path.join(os.path.dirname(os.path.realpath(__file__)), FLAGS.networkDirectory, FLAGS.network)
         exec(open(path_network).read(), globals())
+        try:
+            build_model
+        except NameError:
+            logging.error("The user model build function 'build_model' is not defined.")
+            exit(-1)
+
+        if not callable(build_model):
+            logging.error("The user model build function 'build_model' is not callable, it is of type (%s)", type(build_model))
+            exit(-1)
 
         # Create the network template
         network_template = template.make_template(digits.GraphKeys.TEMPLATE, build_model)
@@ -465,7 +510,7 @@ def main(_):
         ## Initial Forward Validation Pass
         if FLAGS.validation_db:
             val_model.start_queue_runners(sess)
-            Validation(sess, val_model, writer, 0)
+            Validation(sess, val_model, 0)
 
         if FLAGS.train_db:
             # epoch value will be calculated for every batch size. To maintain unique epoch value between batches, it needs to be rounded to the required number of significant digits.
@@ -539,7 +584,7 @@ def main(_):
 
                     # Potential Validation Pass
                     if FLAGS.validation_db and current_epoch >= next_validation:
-                        Validation(sess, val_model, writer, current_epoch)
+                        Validation(sess, val_model, current_epoch)
                         # Find next nearest epoch value that exactly divisible by FLAGS.interval:
                         next_validation = (round(float(current_epoch)/FLAGS.interval) + 1) * FLAGS.interval 
                         last_validation_epoch = current_epoch
@@ -566,7 +611,7 @@ def main(_):
 
         # If required, perform final Validation pass
         if FLAGS.validation_db and current_epoch >= next_validation:
-            Validation(sess, val_model, writer, current_epoch)
+            Validation(sess, val_model, current_epoch)
 
         if FLAGS.train_db:
             del train_model
