@@ -135,21 +135,25 @@ class Model(object):
             available_devices.append('/cpu:0')
 
         # Split the batch over the batch dimension over the number of available gpu's
-        batch_x_split = tf.split(0, len(available_devices), self.dataloader.batch_x, name='split_batch')
-
-        if self.stage != digits.STAGE_INF:
-            # Inference never has labels
-            batch_y_split = tf.split(0, len(available_devices), self.dataloader.batch_y, name='split_batch')
+        if len(available_devices) == 1:
+            batch_x_split = [self.dataloader.batch_x]
+            if self.stage != digits.STAGE_INF: # Has no labels
+                batch_y_split = [self.dataloader.batch_y]
+        else:
+            # Split them up
+            batch_x_split = tf.split(0, len(available_devices), self.dataloader.batch_x, name='split_batch')
+            if self.stage != digits.STAGE_INF: # Has no labels
+                batch_y_split = tf.split(0, len(available_devices), self.dataloader.batch_y, name='split_batch')
 
         # Run the user model through the build_model function that should be filled in
         grad_towers = []
-        for gpu_id, gpu_device in enumerate(available_devices):
-            with tf.device(gpu_device):
-                with tf.name_scope('tower_%d' % gpu_id) as scope_tower:
-                    with tf.name_scope(self.GraphKeys['MODEL']):
+        with tf.name_scope(self.GraphKeys['MODEL']):
+            for dev_i, dev_name in enumerate(available_devices):
+                with tf.device(dev_name):
+                    with tf.name_scope('tower_%d' % dev_i) as scope_tower:
                         # Load the parameters to be  passed to the custom user network definition
                         model_params = {
-                            'x' : batch_x_split[gpu_id],
+                            'x' : batch_x_split[dev_i],
                             'input_shape' : self.dataloader.get_shape(),
                             'nclasses' : self.nclasses,
                             'is_training' : self.stage == digits.STAGE_TRAIN,
@@ -182,7 +186,7 @@ class Model(object):
 
                     with tf.name_scope(self.GraphKeys['LOSS']):
                         
-                        loss_op = user_network['loss'](batch_y_split[gpu_id])
+                        loss_op = user_network['loss'](batch_y_split[dev_i])
 
                         tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
                         #loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss')
@@ -192,7 +196,7 @@ class Model(object):
                         total_tower_loss =tf.add_n(tf.get_collection(self.GraphKeys['LOSSES'], scope_tower), name='total_tower_loss')
 
                         if len(available_devices) > 1:
-                            self._summaries.append(tf.scalar_summary('loss_t_%d' % gpu_id, total_tower_loss))
+                            self._summaries.append(tf.scalar_summary('loss_t_%d' % dev_i, total_tower_loss))
 
 
                     # Reuse the variables in this scope for the next tower/device
@@ -202,8 +206,7 @@ class Model(object):
                         grad_tower = self.optimizer.compute_gradients(total_tower_loss)
                         grad_towers.append(grad_tower)
 
-        if self.stage != digits.STAGE_INF:
-            with tf.name_scope(self.GraphKeys['MODEL']):
+            if self.stage != digits.STAGE_INF:
                 self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']))/len(available_devices)))
 
         # Assemble and average the gradients from all towers

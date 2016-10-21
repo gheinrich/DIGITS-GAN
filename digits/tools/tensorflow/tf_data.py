@@ -200,29 +200,31 @@ class LoaderFactory(object):
         return loader
 
     def setup(self, labels_db_path, shuffle, bitdepth, batch_size, num_epochs=None, seed=None):
-        self.labels_db_path = labels_db_path
+        with tf.device('/cpu:0'):
+            self.labels_db_path = labels_db_path
 
-        self.shuffle = shuffle
-        self.bitdepth = bitdepth
-        self.batch_size = batch_size
-        self.num_epochs = num_epochs
-        self._seed = seed
+            self.shuffle = shuffle
+            self.bitdepth = bitdepth
+            self.batch_size = batch_size
+            self.num_epochs = num_epochs
+            self._seed = seed
 
-        if self.labels_db_path:
-            self.labels_db = LoaderFactory.set_source(self.labels_db_path)
-            self.labels_db.bitdepth = self.bitdepth
-            self.labels_db.stage = self.stage
-            self.labels_db.initialize()
+            if self.labels_db_path:
+                self.labels_db = LoaderFactory.set_source(self.labels_db_path)
+                self.labels_db.bitdepth = self.bitdepth
+                self.labels_db.stage = self.stage
+                self.labels_db.initialize()
 
-        self.initialize()
-        logging.info("Found %s images in db %s ", self.get_total(), self.db_path)
+            self.initialize()
+            logging.info("Found %s images in db %s ", self.get_total(), self.db_path)
 
     def get_key_index(self, key):
         return self.keys.index(key)
 
     def set_augmentation(self, mean_loader, aug_dict={}):
-        self.mean_loader = mean_loader
-        self.aug_dict = aug_dict
+        with tf.device('/cpu:0'):
+            self.mean_loader = mean_loader
+            self.aug_dict = aug_dict
 
     def get_shape(self):
         input_shape = [self.height, self.width, self.channels]
