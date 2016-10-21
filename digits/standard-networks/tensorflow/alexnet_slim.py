@@ -27,8 +27,8 @@ def build_model(params):
         loss = digits.classification_loss(model, y)
         accuracy = digits.classification_accuracy(model, y)
         accuracy_top_5 = digits.classification_accuracy_top_n(model, y, 5)
-        tf.scalar_summary('accuracy', accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
-        tf.scalar_summary('accuracy_top_5', accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+        tf.scalar_summary(accuracy.op.name, accuracy, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
+        tf.scalar_summary(accuracy_top_5.op.name, accuracy_top_5, collections=[digits.GraphKeys.SUMMARIES_TRAIN])
         return loss
 
     return {

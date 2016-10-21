@@ -376,6 +376,8 @@ class LoaderFactory(object):
                 name='batcher',
             )
 
+        # @TODO(tzaman) - support tf.train.shuffle_batch_join ?
+
         self.batch_k = batch[0] # Key
         self.batch_x = batch[1] # Input
         if len(batch) == 3:
@@ -600,7 +602,6 @@ class TFRecordsLoader(LoaderFactory):
     def initialize(self):
         self.float_data = False # For now only strings
         self.keys = None # Not using keys
-        self.data_encoded = False # @TODO(tzaman)
         self.unencoded_data_format = 'hwc'
         self.unencoded_channel_scheme = 'rgb'
         self.reader = None
@@ -610,17 +611,36 @@ class TFRecordsLoader(LoaderFactory):
             self.image_dtype = tf.uint16
 
         # Count all the records @TODO(tzaman): account for shards!
-        record_iter = tf.python_io.tf_record_iterator(self.db_path)
-        self.total = 0
-        for r in record_iter:
-            self.total += 1
+        # Loop the records in path @TODO(tzaman) get this from a txt?
+        #self.db_path += '/test.tfrecords' # @TODO(tzaman) this is a hack
 
+        self.shard_paths = []
+        list_db_files = self.db_path + '/list.txt'
+        self.total = 0
+        with open(list_db_files) as f:
+            for line in f:
+                # Account for the relative path format in list.txt
+                shard_path = self.db_path + '/' + os.path.basename(line.strip())
+                record_iter = tf.python_io.tf_record_iterator(shard_path)
+                for r in record_iter:
+                    self.total += 1
+                if not self.total:
+                    raise ValueError('Database or shard contains no records (%s)' % (self.db_path))
+                self.shard_paths.append(shard_path)
+
+        # Use last record read to extract some preliminary data that is sometimes needed or useful
         example_proto = tf.train.Example()
         example_proto.ParseFromString(r)
 
         self.channels = example_proto.features.feature['depth'].int64_list.value[0]
         self.height = example_proto.features.feature['height'].int64_list.value[0]
         self.width = example_proto.features.feature['width'].int64_list.value[0]
+        data_encoding_id = example_proto.features.feature['encoding'].int64_list.value[0]
+        if data_encoding_id:
+            self.data_encoded = True
+            self.data_mime = 'image/png' if data_encoding_id == 1 else 'image/jpeg'
+        else:
+            self.data_encoded = False
 
         # Set up the reader
         # @TODO(tzaman) there's a filename queue because it can have multiple (sharded) tfrecord files (!)
@@ -628,7 +648,11 @@ class TFRecordsLoader(LoaderFactory):
         self.reader = tf.TFRecordReader(name='tfrecord_reader')
 
     def get_queue(self):
-        return tf.train.string_input_producer([self.db_path], num_epochs=self.num_epochs)
+        return tf.train.string_input_producer(self.shard_paths,
+                                              num_epochs=self.num_epochs,
+                                              capacity=len(self.shard_paths),
+                                              shuffle=self.shuffle,
+                                              seed=self._seed)
 
     def get_single_data(self, key_queue):
         """
@@ -677,7 +701,7 @@ class Hdf5Loader(LoaderFactory):
         self.total = 0
         with open(list_db_files) as f:
             for line in f:
-                # Account for the strange relative path format in list.txt
+                # Account for the relative path format in list.txt
                 fn = self.db_path + '/' + os.path.basename(line.strip())
                 db = h5py.File(fn)
                 self.check_hdf5_db(db)
