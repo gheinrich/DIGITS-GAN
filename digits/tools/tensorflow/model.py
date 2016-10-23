@@ -100,6 +100,7 @@ class Model(object):
         self.GraphKeys['LOSS'] = "loss_" + self.stage # The name-scope
         self.GraphKeys['LOSSES'] = "losses" + self.stage # The collection
         self.GraphKeys['LOADER'] = "data_" + self.stage
+        # @TODO: all these graphkeys can be static as long as they are under the train/val/inf scopes.)
 
         # Special exception for summaries, as they need to be accesible to the user model
         # in a tf compliant way
@@ -134,6 +135,9 @@ class Model(object):
         if not available_devices:
             available_devices.append('/cpu:0')
 
+        #self.dataloader.batch_x = tf.zeros([128,224,224,3], dtype=tf.float32)
+        #self.dataloader.batch_y = tf.zeros([128], dtype=tf.int64)
+
         # Split the batch over the batch dimension over the number of available gpu's
         if len(available_devices) == 1:
             batch_x_split = [self.dataloader.batch_x]
@@ -147,10 +151,10 @@ class Model(object):
 
         # Run the user model through the build_model function that should be filled in
         grad_towers = []
-        with tf.name_scope(self.GraphKeys['MODEL']):
-            for dev_i, dev_name in enumerate(available_devices):
-                with tf.device(dev_name):
-                    with tf.name_scope('tower_%d' % dev_i) as scope_tower:
+        for dev_i, dev_name in enumerate(available_devices):
+            with tf.device(dev_name):
+                with tf.name_scope('tower_%d' % dev_i) as scope_tower:
+                    with tf.name_scope(self.GraphKeys['MODEL']):
                         # Load the parameters to be  passed to the custom user network definition
                         model_params = {
                             'x' : batch_x_split[dev_i],
@@ -179,7 +183,7 @@ class Model(object):
                                 exit(-1)
 
                         self.inference = user_network['model']
-                    
+                
                     if self.stage == digits.STAGE_INF:
                         # For inferencing we will only use the inference part of the graph
                         continue;
@@ -193,7 +197,7 @@ class Model(object):
                         #tf.add_to_collection('losses', loss_op)
 
                         # Assemble all made within this scope so far (f.e. including potential L2-loss from user model)
-                        total_tower_loss =tf.add_n(tf.get_collection(self.GraphKeys['LOSSES'], scope_tower), name='total_tower_loss')
+                        total_tower_loss =tf.add_n(tf.get_collection(self.GraphKeys['LOSSES'], scope=scope_tower), name='total_tower_loss')
 
                         if len(available_devices) > 1:
                             self._summaries.append(tf.scalar_summary('loss_t_%d' % dev_i, total_tower_loss))
@@ -206,8 +210,8 @@ class Model(object):
                         grad_tower = self.optimizer.compute_gradients(total_tower_loss)
                         grad_towers.append(grad_tower)
 
-            if self.stage != digits.STAGE_INF:
-                self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']))/len(available_devices)))
+        if self.stage != digits.STAGE_INF:
+            self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']))/len(available_devices)))
 
         # Assemble and average the gradients from all towers
         if self.stage == digits.STAGE_TRAIN:

@@ -30,7 +30,7 @@ import utils as digits
 # Constants
 MIN_FRACTION_OF_EXAMPLES_IN_QUEUE = 0.4
 MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 4096 # The queue size cannot exceed this number
-NUM_THREADS_DATA_LOADER = 4
+NUM_THREADS_DATA_LOADER = 10
 LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 
 # Supported extensions for Loaders
@@ -366,19 +366,32 @@ class LoaderFactory(object):
         if single_label is not None:
             single_batch.append(single_label)
 
-        batch = tf.train.batch(
-                single_batch,
-                batch_size=self.batch_size,
-                dynamic_pad=True, # Allows us to not supply fixed shape a priori
-                enqueue_many=False, # Each tensor is a single example
-                #shapes=[[],[28,28,1],[]], # Only makes sense is dynamic_pad=False
-                num_threads=NUM_THREADS_DATA_LOADER,
-                capacity=max_queue_capacity, # Max amount that will be loaded and queued
-                allow_smaller_final_batch=True, # Happens if total%batch_size!=0
-                name='batcher',
-            )
+        if self.backend == 'tfrecords':
+            #batch = tf.train.batch(
+            batch = tf.train.shuffle_batch(
+                    single_batch,
+                    batch_size=self.batch_size,
+                    num_threads=NUM_THREADS_DATA_LOADER,
+                    capacity=10*self.batch_size, # Max amount that will be loaded and queued
+                    shapes=[[0],[224,224,3],[]], # Only makes sense is dynamic_pad=False #@TODO(tzaman) - FIXME
+                    min_after_dequeue=5*self.batch_size,
+                    allow_smaller_final_batch=True, # Happens if total%batch_size!=0
+                    name='batcher'
+                )
+        else:
+            batch = tf.train.batch(
+                    single_batch,
+                    batch_size=self.batch_size,
+                    dynamic_pad=True, # Allows us to not supply fixed shape a priori
+                    enqueue_many=False, # Each tensor is a single example
+                    #shapes=[[],[28,28,1],[]], # Only makes sense is dynamic_pad=False
+                    num_threads=NUM_THREADS_DATA_LOADER,
+                    capacity=max_queue_capacity, # Max amount that will be loaded and queued
+                    allow_smaller_final_batch=True, # Happens if total%batch_size!=0
+                    name='batcher',
+                )
 
-        # @TODO(tzaman) - support tf.train.shuffle_batch_join ?
+
 
         self.batch_k = batch[0] # Key
         self.batch_x = batch[1] # Input
@@ -533,12 +546,12 @@ class FileListLoader(LoaderFactory):
         self.float_data = False
         self.data_encoded = True
 
-        if self.backend is 'file':
+        if self.backend == 'file':
             # Single file
             self.total = 1
             self.keys = [self.db_path]
             first_file_path = self.db_path
-        elif self.backend is 'filelist':
+        elif self.backend == 'filelist':
             # Single file with a list of files
             with open(self.db_path) as f:
                 self.keys = f.readlines()
@@ -652,7 +665,6 @@ class TFRecordsLoader(LoaderFactory):
     def get_queue(self):
         return tf.train.string_input_producer(self.shard_paths,
                                               num_epochs=self.num_epochs,
-                                              capacity=len(self.shard_paths),
                                               shuffle=self.shuffle,
                                               seed=self._seed)
 

@@ -41,7 +41,7 @@ import model
 import tf_data
 
 # Constants
-TF_NUM_THREADS = 6
+TF_INTRA_OP_TRHEADS = 6
 MIN_LOGS_PER_TRAIN_EPOCH = 8 # torch default: 8
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S',
@@ -437,6 +437,7 @@ def main(_):
         network_template = template.make_template(digits.GraphKeys.TEMPLATE, build_model)
 
         if FLAGS.train_db:
+            #with tf.name_scope(self.stage): #@TODO(tzaman) - implement me !
             train_model = model.Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses)
             train_model.create_dataloader(FLAGS.train_db)
             train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
@@ -471,7 +472,7 @@ def main(_):
         # implementations.
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True, # will automatically do non-gpu supported ops on cpu
-            intra_op_parallelism_threads=TF_NUM_THREADS,
+            intra_op_parallelism_threads=TF_INTRA_OP_TRHEADS,
             log_device_placement=FLAGS.log_device_placement))
 
         if FLAGS.visualizeModelPath:

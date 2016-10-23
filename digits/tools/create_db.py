@@ -701,7 +701,7 @@ def _array_to_tf_feature(image, label, encoding):
     Creates a tensorflow Example from a numpy.ndarray
     """
     if not encoding:
-        image_raw = image
+        image_raw = image #@TODO(tzaman) this is a ndarray but shoud be a bytelist/string
         encoding_id = 0
     else:
         s = StringIO()
