@@ -149,7 +149,7 @@ def save_timeline_trace(run_metadata, save_dir, step):
 def strip_data_from_graph_def(graph_def):
     strip_def = tf.GraphDef()
     for n0 in graph_def.node:
-        n = strip_def.node.add() 
+        n = strip_def.node.add()
         n.MergeFrom(n0)
         if n.op == 'Const':
             tensor = n.attr['value'].tensor
@@ -202,10 +202,10 @@ def print_summarylist(tags, vals):
     print_list = ''
     for i, key in enumerate(tags):
         if vals[i] == float('Inf'):
-            raise ValueError('Infinite value %s = Inf' % key) 
+            raise ValueError('Infinite value %s = Inf' % key)
         print_list = print_list + key + " = " + "{:.6f}".format(vals[i])
         if i < len(tags)-1:
-            print_list = print_list + ", " 
+            print_list = print_list + ", "
     return print_list
 
 def dump(obj):
@@ -306,7 +306,7 @@ def Inference(sess, model):
         while not model.queue_coord.should_stop():
             keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, model.inference, [weight_vars], [activation_ops]])
 
-            if FLAGS.visualize_inf:            
+            if FLAGS.visualize_inf:
                 save_weight_visualization(weight_vars, activation_ops, w, a)
 
             # @TODO(tzaman): error on no output?
@@ -315,7 +315,7 @@ def Inference(sess, model):
                 # We're allowing multiple predictions per image here. DIGITS doesnt support that iirc
                 logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[i].tolist()))
     except tf.errors.OutOfRangeError:
-        print('Done: tf.errors.OutOfRangeError')    
+        print('Done: tf.errors.OutOfRangeError')
 
 def Validation(sess, model, current_epoch):
     """
@@ -393,7 +393,7 @@ def main(_):
             logging.info("Loading mean tensor from %s file", FLAGS.mean)
             mean_loader = tf_data.MeanLoader(FLAGS.mean, FLAGS.subtractMean, FLAGS.bitdepth)
 
-            
+
         classes = 0
         nclasses = 0
         if FLAGS.labels_list:
@@ -445,7 +445,7 @@ def main(_):
             input_shape = train_model.dataloader.get_shape()
             train_model.set_optimizer(FLAGS.optimization, FLAGS.momentum)
             train_model.create_model_from_template(network_template)
- 
+
         if FLAGS.validation_db:
             val_model = model.Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
             val_model.create_dataloader(FLAGS.validation_db)
@@ -497,6 +497,7 @@ def main(_):
             load_snapshot(sess, FLAGS.weights, tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES))
 
         # Tensorboard: Merge all the summaries and write them out
+        print("############### writing to %s" % FLAGS.summaries_dir)
         writer = tf.train.SummaryWriter(os.path.join(FLAGS.summaries_dir, 'tb'), sess.graph)
 
         # If we are inferencing, only do that.
@@ -505,13 +506,13 @@ def main(_):
             Inference(sess, inf_model)
 
         start = time.time() # @TODO(tzaman) - removeme
-        
+
         ## Initial Forward Validation Pass
         if FLAGS.validation_db:
             val_model.start_queue_runners(sess)
             Validation(sess, val_model, 0)
 
-        
+
         if FLAGS.train_db:
             # epoch value will be calculated for every batch size. To maintain unique epoch value between batches, it needs to be rounded to the required number of significant digits.
             epoch_round = 0 # holds the required number of significant digits for round function.
@@ -563,7 +564,7 @@ def main(_):
                         writer.add_run_metadata(run_metadata, str(step))
                         save_timeline_trace(run_metadata, FLAGS.save, step)
 
-                    writer.add_summary(summary_str, step)
+
 
                     # Parse the summary
                     tags, print_vals = summary_to_lists(summary_str)
@@ -575,7 +576,7 @@ def main(_):
 
                     # Start with a forward pass
                     if (step == 1) or ((step % logging_interval_step) == 0):
-                        steps_since_log = step - step_last_log 
+                        steps_since_log = step - step_last_log
                         print_list = print_summarylist(tags, print_vals_sum/steps_since_log)
                         logging.info("Training (epoch " + str(current_epoch) + "): " + print_list)
                         print_vals_sum = 0
@@ -585,15 +586,17 @@ def main(_):
                     if FLAGS.validation_db and current_epoch >= next_validation:
                         Validation(sess, val_model, current_epoch)
                         # Find next nearest epoch value that exactly divisible by FLAGS.interval:
-                        next_validation = (round(float(current_epoch)/FLAGS.interval) + 1) * FLAGS.interval 
+                        next_validation = (round(float(current_epoch)/FLAGS.interval) + 1) * FLAGS.interval
                         last_validation_epoch = current_epoch
 
                     # Saving Snapshot
                     if FLAGS.snapshotInterval > 0 and current_epoch >= next_snapshot_save:
+                        print("Add summary")
+                        writer.add_summary(summary_str, step)
                         save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.serving_export)
 
                         # To find next nearest epoch value that exactly divisible by FLAGS.snapshotInterval
-                        next_snapshot_save = (round(float(current_epoch)/FLAGS.snapshotInterval) + 1) * FLAGS.snapshotInterval 
+                        next_snapshot_save = (round(float(current_epoch)/FLAGS.snapshotInterval) + 1) * FLAGS.snapshotInterval
                         last_snapshot_save_epoch = current_epoch
                     writer.flush()
             except tf.errors.OutOfRangeError:
@@ -607,7 +610,7 @@ def main(_):
              # If required, perform final snapshot save
             if FLAGS.snapshotInterval > 0 and FLAGS.epoch > last_snapshot_save_epoch:
                 save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, FLAGS.epoch, FLAGS.serving_export)
-        
+
         print('Training wall-time:', time.time()-start) # @TODO(tzaman) - removeme
 
         # If required, perform final Validation pass
@@ -629,4 +632,4 @@ def main(_):
         exit(0)
 
 if __name__ == '__main__':
-    tf.app.run()     
+    tf.app.run()

@@ -181,7 +181,7 @@ class LoaderFactory(object):
     def set_source(db_path):
         """
         Returns the correct backend.
-        """ 
+        """
         backend = get_backend_of_source(db_path)
         loader = None
         if backend == 'lmdb':
@@ -240,6 +240,7 @@ class LoaderFactory(object):
     def reshape_decode(self, data, shape):
         if self.float_data: #@TODO(tzaman): this is LMDB specific - Make generic!
             data = tf.reshape(data, shape)
+            data = digits.chw_to_hwc(data)
         else:
             # Decode image of any time option might come: https://github.com/tensorflow/tensorflow/issues/4009
             # Distinguish between mime types
@@ -283,11 +284,11 @@ class LoaderFactory(object):
         Returns:
             None.
         """
-    
+
         # @TODO(tzaman) the container can be used if the reset function is implemented:
         # see https://github.com/tensorflow/tensorflow/issues/4535#issuecomment-248990633
         #
-        #with tf.container('queue-container'): 
+        #with tf.container('queue-container'):
 
         key_queue = self.get_queue()
 
@@ -297,7 +298,7 @@ class LoaderFactory(object):
             single_key, single_data, single_data_shape = self.get_single_data(key_queue)
         else:
             single_key, single_data, single_data_shape, single_label, single_label_shape = self.get_single_data(key_queue)
-        
+
         single_data_shape = tf.reshape(single_data_shape, [3]) # Shape the shape to have three dimensions
         single_data = self.reshape_decode(single_data, single_data_shape)
 
@@ -323,7 +324,7 @@ class LoaderFactory(object):
                     single_data = tf.image.resize_image_with_crop_or_pad(single_data, self.croplen, self.croplen)
 
         # Data Augmentation
-        if self.aug_dict:
+        if None: # self.aug_dict:
             with tf.name_scope('augmentation'):
                 flipflag = self.aug_dict['aug_flip']
                 if  flipflag == 'fliplr' or flipflag == 'fliplrud':
@@ -350,16 +351,16 @@ class LoaderFactory(object):
                      # closely resembles V - temporary until rewritten
                     single_data = tf.image.random_brightness(single_data, aug_hsv['v'], seed=self._seed)
 
-                # @TODO(tzaman) whitening is so invasive that we need a way to add it to the val/inf too in a 
+                # @TODO(tzaman) whitening is so invasive that we need a way to add it to the val/inf too in a
                 # portable manner, like the mean file : how? If we don't find a way, don't use whitening.
                 aug_whitening = self.aug_dict['aug_whitening']
                 if aug_whitening:
                     # Subtract off its own mean and divide by the standard deviation of its own the pixels.
                     with tf.name_scope('whitening'):
-                        single_data = tf.image.per_image_whitening(single_data) # N.B. also converts to float  
-        
+                        single_data = tf.image.per_image_whitening(single_data) # N.B. also converts to float
+
         max_queue_capacity = min(math.ceil(self.total * MIN_FRACTION_OF_EXAMPLES_IN_QUEUE), MAX_ABSOLUTE_EXAMPLES_IN_QUEUE)
-        
+
         single_batch = [single_key, single_data]
         if single_label is not None:
             single_batch.append(single_label)
@@ -396,6 +397,8 @@ class LmdbLoader(LoaderFactory):
         except ImportError:
             logging.error("Attempt to create LMDB Loader but lmdb is not installed.")
             exit(-1)
+
+        print("init LMDB ==============================")
 
         self.unencoded_data_format = 'chw'
         self.unencoded_channel_scheme = 'bgr'
@@ -475,12 +478,13 @@ class LmdbLoader(LoaderFactory):
             val = lmdb_txn.get(key)
             datum = caffe_tf_pb2.Datum()
             datum.ParseFromString(val)
-            shape = np.array([datum.height, datum.width, datum.channels], dtype=np.int32)
+            shape = np.array([datum.channels, datum.height, datum.width], dtype=np.int32)
             if datum.float_data:
                 data = np.asarray(datum.float_data, dtype='float32')
             else:
                 data = datum.data
             label = np.asarray([datum.label], dtype=np.int64) # scalar label
+            #print("key=%s data=%s shape=%s" % (key,repr(data[:10]), repr(shape)))
             return data, shape, label
 
         def get_data_op(key):
@@ -748,7 +752,6 @@ class Hdf5Loader(LoaderFactory):
                 label = self.h5dbs[i]['label'][key_within_db].astype(np.int64)
                 return data, shape, label
             prev_end_range = end_range
-
         logging.error("Out of range") # @TODO(tzaman) out of range error
         exit(-1)
 

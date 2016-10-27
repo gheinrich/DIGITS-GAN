@@ -175,13 +175,13 @@ class Model(object):
                                 exit(-1)
 
                         self.inference = user_network['model']
-                    
+
                     if self.stage == digits.STAGE_INF:
                         # For inferencing we will only use the inference part of the graph
                         continue;
 
                     with tf.name_scope(self.GraphKeys['LOSS']):
-                        
+
                         loss_op = user_network['loss'](batch_y_split[gpu_id])
 
                         tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
@@ -208,6 +208,7 @@ class Model(object):
 
         # Assemble and average the gradients from all towers
         if self.stage == digits.STAGE_TRAIN:
+            print('grad_towers: %d' % len(grad_towers))
             if len(grad_towers) == 1:
                 grad_avg = grad_towers[0]
             else:
@@ -265,7 +266,8 @@ class Model(object):
             return tf.train.MomentumOptimizer(learning_rate=self.learning_rate,
                                               momentum=self.momentum)
         elif self.optimization == 'adam':
-            return tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+            print("epsilon=1e-8")
+            return tf.train.AdamOptimizer(learning_rate=self.learning_rate, epsilon=1e-8)
         elif self.optimization == 'ftrl':
             return tf.train.FtrlOptimizer(learning_rate=self.learning_rate)
         elif self.optimization == 'rmsprop':
