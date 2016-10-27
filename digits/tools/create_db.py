@@ -701,7 +701,7 @@ def _array_to_tf_feature(image, label, encoding):
     Creates a tensorflow Example from a numpy.ndarray
     """
     if not encoding:
-        image_raw = image #@TODO(tzaman) this is a ndarray but shoud be a bytelist/string
+        image_raw = image.tostring()
         encoding_id = 0
     else:
         s = StringIO()
@@ -720,13 +720,13 @@ def _array_to_tf_feature(image, label, encoding):
     example = tf.train.Example(
             features=tf.train.Features(
                 feature={
-                'height': _int64_feature(image.shape[0]),
-                'width': _int64_feature(image.shape[1]),
-                'depth': _int64_feature(depth),
-                'label': _int64_feature(label),
-                'image_raw': _bytes_feature(image_raw),
-                'encoding' :  _int64_feature(encoding_id),
-                # @TODO(tzaman) - add encoding/encoded flag?
+                    'height': _int64_feature(image.shape[0]),
+                    'width': _int64_feature(image.shape[1]),
+                    'depth': _int64_feature(depth),
+                    'label': _int64_feature(label),
+                    'image_raw': _bytes_feature(image_raw),
+                    'encoding' :  _int64_feature(encoding_id),
+                    # @TODO(tzaman) - add bitdepth flag?
                 }
             ))
     return example.SerializeToString()

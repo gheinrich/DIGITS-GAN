@@ -366,14 +366,13 @@ class LoaderFactory(object):
         if single_label is not None:
             single_batch.append(single_label)
 
-        if self.backend == 'tfrecords':
-            #batch = tf.train.batch(
+        if self.backend == 'tfrecords' and self.shuffle:
             batch = tf.train.shuffle_batch(
                     single_batch,
                     batch_size=self.batch_size,
                     num_threads=NUM_THREADS_DATA_LOADER,
                     capacity=10*self.batch_size, # Max amount that will be loaded and queued
-                    shapes=[[0],[224,224,3],[]], # Only makes sense is dynamic_pad=False #@TODO(tzaman) - FIXME
+                    shapes=[[0],[self.height, self.width, self.channels],[]], # Only makes sense is dynamic_pad=False #@TODO(tzaman) - FIXME
                     min_after_dequeue=5*self.batch_size,
                     allow_smaller_final_batch=True, # Happens if total%batch_size!=0
                     name='batcher'
@@ -390,8 +389,6 @@ class LoaderFactory(object):
                     allow_smaller_final_batch=True, # Happens if total%batch_size!=0
                     name='batcher',
                 )
-
-
 
         self.batch_k = batch[0] # Key
         self.batch_x = batch[1] # Input
@@ -647,6 +644,7 @@ class TFRecordsLoader(LoaderFactory):
         example_proto = tf.train.Example()
         example_proto.ParseFromString(r)
 
+        # @TODO(tzaman) - bitdepth flag?
         self.channels = example_proto.features.feature['depth'].int64_list.value[0]
         self.height = example_proto.features.feature['height'].int64_list.value[0]
         self.width = example_proto.features.feature['width'].int64_list.value[0]

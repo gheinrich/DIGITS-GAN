@@ -94,22 +94,22 @@ class Model(object):
         self.network_loss = None
 
         # Define graph keys in tf convention
-        self.GraphKeys = {}
-        self.GraphKeys['QUEUE_RUNNERS'] = "queue_runner_" + self.stage
-        self.GraphKeys['MODEL'] = "model_" + self.stage
-        self.GraphKeys['LOSS'] = "loss_" + self.stage # The name-scope
-        self.GraphKeys['LOSSES'] = "losses" + self.stage # The collection
-        self.GraphKeys['LOADER'] = "data_" + self.stage
+        #self.GraphKeys = {}
+        #self.GraphKeys['QUEUE_RUNNERS'] = "queue_runner_" + self.stage
+        #self.GraphKeys['MODEL'] = "model_" + self.stage
+        #self.GraphKeys['LOSS'] = "loss_" + self.stage # The name-scope
+        #self.GraphKeys['LOSSES'] = "losses" + self.stage # The collection
+        #self.GraphKeys['LOADER'] = "data_" + self.stage
         # @TODO: all these graphkeys can be static as long as they are under the train/val/inf scopes.)
 
         # Special exception for summaries, as they need to be accesible to the user model
         # in a tf compliant way
-        if self.stage == digits.STAGE_TRAIN:
-            self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_TRAIN
-        elif self.stage == digits.STAGE_VAL:
-            self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_VAL
-        elif self.stage == digits.STAGE_INF:
-            self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_INF
+        #if self.stage == digits.STAGE_TRAIN:
+        #    self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_TRAIN
+        #elif self.stage == digits.STAGE_VAL:
+        #    self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_VAL
+        #elif self.stage == digits.STAGE_INF:
+        #    self.GraphKeys['SUMMARIES'] = digits.GraphKeys.SUMMARIES_INF
 
     def create_dataloader(self, db_path):
         self.dataloader = tf_data.LoaderFactory.set_source(db_path)
@@ -120,7 +120,7 @@ class Model(object):
 
     def init_dataloader(self):
         with tf.device('/cpu:0'):
-            with tf.name_scope(self.GraphKeys['LOADER']):
+            with tf.name_scope(digits.GraphKeys.LOADER):
                 self.dataloader.create_input_pipeline()
 
     def set_optimizer(self, optimization, momentum):
@@ -128,15 +128,13 @@ class Model(object):
         self.momentum = momentum
         # touch and initialize the optimizer and global_step
         self.global_step
+        self.learning_rate
 
     def create_model_from_template(self, network_template):
 
         available_devices = digits.get_available_gpus()
         if not available_devices:
             available_devices.append('/cpu:0')
-
-        #self.dataloader.batch_x = tf.zeros([128,224,224,3], dtype=tf.float32)
-        #self.dataloader.batch_y = tf.zeros([128], dtype=tf.int64)
 
         # Split the batch over the batch dimension over the number of available gpu's
         if len(available_devices) == 1:
@@ -154,50 +152,50 @@ class Model(object):
         for dev_i, dev_name in enumerate(available_devices):
             with tf.device(dev_name):
                 with tf.name_scope('tower_%d' % dev_i) as scope_tower:
-                    with tf.name_scope(self.GraphKeys['MODEL']):
-                        # Load the parameters to be  passed to the custom user network definition
-                        model_params = {
-                            'x' : batch_x_split[dev_i],
-                            'input_shape' : self.dataloader.get_shape(),
-                            'nclasses' : self.nclasses,
-                            'is_training' : self.stage == digits.STAGE_TRAIN,
-                        }
 
-                        user_network = network_template(model_params)
+                    # Load the parameters to be  passed to the custom user network definition
+                    model_params = {
+                        'x' : batch_x_split[dev_i],
+                        'input_shape' : self.dataloader.get_shape(),
+                        'nclasses' : self.nclasses,
+                        'is_training' : self.stage == digits.STAGE_TRAIN,
+                    }
 
-                        # Perform checks
-                        if not user_network.has_key('model'):
-                            logging.error("Model definition required in model file but not supplied.")
+                    user_network = network_template(model_params)
+
+                    # Perform checks
+                    if not user_network.has_key('model'):
+                        logging.error("Model definition required in model file but not supplied.")
+                        exit(-1)
+                    else: # Key exists, check type
+                        if 'tensorflow' not in str(type(user_network['model'])):
+                            logging.error("Model definition required in model is not a tf operation type, but is type(%s)", type(user_network['model']))
                             exit(-1)
-                        else: # Key exists, check type
-                            if 'tensorflow' not in str(type(user_network['model'])):
-                                logging.error("Model definition required in model is not a tf operation type, but is type(%s)", type(user_network['model']))
-                                exit(-1)
 
-                        if not user_network.has_key('loss'):
-                            logging.error("Loss function definition required in model file but not supplied.")
+                    if not user_network.has_key('loss'):
+                        logging.error("Loss function definition required in model file but not supplied.")
+                        exit(-1)
+                    else: # Key exists, check if callable
+                        if not callable(user_network['loss']):
+                            logging.error("Returned loss function should be a function, but is type(%s).", type(user_network['loss']))
                             exit(-1)
-                        else: # Key exists, check if callable
-                            if not callable(user_network['loss']):
-                                logging.error("Returned loss function should be a function, but is type(%s).", type(user_network['loss']))
-                                exit(-1)
 
-                        self.inference = user_network['model']
+                    self.inference = user_network['model']
                 
                     if self.stage == digits.STAGE_INF:
                         # For inferencing we will only use the inference part of the graph
                         continue;
 
-                    with tf.name_scope(self.GraphKeys['LOSS']):
+                    with tf.name_scope(digits.GraphKeys.LOSS):
                         
                         loss_op = user_network['loss'](batch_y_split[dev_i])
 
-                        tf.add_to_collection(self.GraphKeys['LOSSES'], loss_op)
+                        tf.add_to_collection(digits.GraphKeys.LOSSES, loss_op)
                         #loss_op = tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']), name='total_loss')
                         #tf.add_to_collection('losses', loss_op)
 
                         # Assemble all made within this scope so far (f.e. including potential L2-loss from user model)
-                        total_tower_loss =tf.add_n(tf.get_collection(self.GraphKeys['LOSSES'], scope=scope_tower), name='total_tower_loss')
+                        total_tower_loss =tf.add_n(tf.get_collection(digits.GraphKeys.LOSSES, scope=scope_tower), name='total_tower_loss')
 
                         if len(available_devices) > 1:
                             self._summaries.append(tf.scalar_summary('loss_t_%d' % dev_i, total_tower_loss))
@@ -211,7 +209,7 @@ class Model(object):
                         grad_towers.append(grad_tower)
 
         if self.stage != digits.STAGE_INF:
-            self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(self.GraphKeys['LOSSES']))/len(available_devices)))
+            self._summaries.append(tf.scalar_summary('loss', tf.add_n(tf.get_collection(digits.GraphKeys.LOSSES, scope=self.stage+'.*'))/len(available_devices)))
 
         # Assemble and average the gradients from all towers
         if self.stage == digits.STAGE_TRAIN:
@@ -230,10 +228,9 @@ class Model(object):
 
         # The below get_collection() commands retrieve any summaries that have been set by the user
         # in the model
-        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
-                                             scope='.*'+self.GraphKeys['MODEL'])
-        self._summaries += tf.get_collection(self.GraphKeys['SUMMARIES'],
-                                             scope='.*'+self.GraphKeys['LOSS'])
+        # @TODO(tzaman) - REIMPLEMENT THESE SUMMARIES
+        sum_keys = digits.GraphKeys.SUMMARIES_TRAIN if self.stage == 'train' else digits.GraphKeys.SUMMARIES_VAL
+        self._summaries += tf.get_collection(sum_keys, scope=self.stage+'.*')
 
         if not len(self._summaries):
             logging.error("No summaries defined. Please define at least one summary.")
@@ -285,14 +282,14 @@ class Model(object):
     def start_queue_runners(self, sess):
         logging.info('Starting queue runners (%s)', self.stage)
         # Distinguish the queue runner collection (for easily obtaining them by collection key)
-        queue_runners = tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS)
+        queue_runners = tf.get_collection(tf.GraphKeys.QUEUE_RUNNERS, scope=self.stage+'.*')
         for qr in queue_runners:
             if self.stage in qr.name:
-                tf.add_to_collection(self.GraphKeys['QUEUE_RUNNERS'], qr)
+                tf.add_to_collection(digits.GraphKeys.QUEUE_RUNNERS, qr)
 
         self.queue_coord = tf.train.Coordinator()
         self.queue_threads = tf.train.start_queue_runners(sess=sess, coord=self.queue_coord,
-                                                          collection=self.GraphKeys['QUEUE_RUNNERS']
+                                                          collection=digits.GraphKeys.QUEUE_RUNNERS
                                                          )
         logging.info('Queue runners started (%s)', self.stage)
 

@@ -438,34 +438,37 @@ def main(_):
 
         if FLAGS.train_db:
             #with tf.name_scope(self.stage): #@TODO(tzaman) - implement me !
-            train_model = model.Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses)
-            train_model.create_dataloader(FLAGS.train_db)
-            train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
-            train_model.dataloader.set_augmentation(mean_loader, aug_dict)
-            train_model.init_dataloader()
-            input_shape = train_model.dataloader.get_shape()
-            train_model.set_optimizer(FLAGS.optimization, FLAGS.momentum)
-            train_model.create_model_from_template(network_template)
+            with tf.name_scope(digits.STAGE_TRAIN):
+                train_model = model.Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses)
+                train_model.create_dataloader(FLAGS.train_db)
+                train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
+                train_model.dataloader.set_augmentation(mean_loader, aug_dict)
+                train_model.init_dataloader()
+                input_shape = train_model.dataloader.get_shape()
+                train_model.set_optimizer(FLAGS.optimization, FLAGS.momentum)
+                train_model.create_model_from_template(network_template)
  
         if FLAGS.validation_db:
-            val_model = model.Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
-            val_model.create_dataloader(FLAGS.validation_db)
-            val_model.dataloader.setup(FLAGS.validation_labels, False, FLAGS.bitdepth, batch_size_val, 1e9, FLAGS.seed) # @TODO(tzaman): set numepochs to 1
-            val_model.dataloader.set_augmentation(mean_loader)
-            val_model.init_dataloader()
-            if not input_shape:
-                input_shape = val_model.dataloader.get_shape()
-            val_model.create_model_from_template(network_template)
+            with tf.name_scope(digits.STAGE_VAL):
+                val_model = model.Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
+                val_model.create_dataloader(FLAGS.validation_db)
+                val_model.dataloader.setup(FLAGS.validation_labels, False, FLAGS.bitdepth, batch_size_val, 1e9, FLAGS.seed) # @TODO(tzaman): set numepochs to 1
+                val_model.dataloader.set_augmentation(mean_loader)
+                val_model.init_dataloader()
+                if not input_shape:
+                    input_shape = val_model.dataloader.get_shape()
+                val_model.create_model_from_template(network_template)
 
         if FLAGS.inference_db:
-            inf_model = model.Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
-            inf_model.create_dataloader(FLAGS.inference_db)
-            inf_model.dataloader.setup(None, False, FLAGS.bitdepth, FLAGS.batch_size, 1, FLAGS.seed)
-            inf_model.dataloader.set_augmentation(mean_loader)
-            inf_model.init_dataloader()
-            if not input_shape:
-                input_shape = inf_model.dataloader.get_shape()
-            inf_model.create_model_from_template(network_template)
+            with tf.name_scope(digits.STAGE_INF):
+                inf_model = model.Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
+                inf_model.create_dataloader(FLAGS.inference_db)
+                inf_model.dataloader.setup(None, False, FLAGS.bitdepth, FLAGS.batch_size, 1, FLAGS.seed)
+                inf_model.dataloader.set_augmentation(mean_loader)
+                inf_model.init_dataloader()
+                if not input_shape:
+                    input_shape = inf_model.dataloader.get_shape()
+                inf_model.create_model_from_template(network_template)
 
         # Start running operations on the Graph. allow_soft_placement must be set to
         # True to build towers on GPU, as some of the ops do not have GPU
@@ -504,6 +507,11 @@ def main(_):
         if FLAGS.inference_db:
             inf_model.start_queue_runners(sess)
             Inference(sess, inf_model)
+
+        queue_size_op = []
+        for n in tf.get_default_graph().as_graph_def().node:
+            if '_Size' in n.name:
+                queue_size_op.append(n.name+':0')
 
         start = time.time() # @TODO(tzaman) - removeme
         
@@ -559,6 +567,8 @@ def main(_):
                             feed_dict=feed_dict,
                             options=run_options,
                             run_metadata=run_metadata)
+
+                    logging.info(sess.run(queue_size_op))
 
                     if log_runtime:
                         writer.add_run_metadata(run_metadata, str(step))
