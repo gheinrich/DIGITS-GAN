@@ -222,8 +222,7 @@ class TensorflowTrainTask(TrainTask):
         else:
             raise ValueError('Unknown solver_type %s' % self.solver_type)
 
-        if self.val_interval > 0:
-            args.append('--interval=%d' % self.val_interval)
+        args.append('--validation_interval=%d' % self.val_interval)
 
         if 'gpus' in resources:
             identifiers = []

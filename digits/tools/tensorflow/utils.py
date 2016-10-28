@@ -8,6 +8,7 @@ Digits default Tensorflow Ops as helper functions.
 
 """
 
+import functools
 import tensorflow as tf
 from tensorflow.python.client import timeline, device_lib
 
@@ -17,14 +18,25 @@ STAGE_INF = 'inf'
 
 class GraphKeys(object):
     TEMPLATE = "model"
-    SUMMARIES_TRAIN = "summaries_train"
-    SUMMARIES_VAL =  "summaries_val"
-    SUMMARIES_INF =  "summaries_inf"
+    #SUMMARIES_TRAIN = "summaries_train"
+    #SUMMARIES_VAL =  "summaries_val"
+    #SUMMARIES_INF =  "summaries_inf"
     QUEUE_RUNNERS = "queue_runner"
     #MODEL = "model"
     LOSS = "loss" # The namescope
     LOSSES = "losses" # The collection
     LOADER = "data"
+
+def model_property(function):
+    # From https://danijar.com/structuring-your-tensorflow-models/
+    attribute = '_cache_' + function.__name__
+    @property
+    @functools.wraps(function)
+    def decorator(self):
+        if not hasattr(self, attribute):
+            setattr(self, attribute, function(self))
+        return getattr(self, attribute)
+    return decorator
 
 def classification_loss(pred, y):
     """

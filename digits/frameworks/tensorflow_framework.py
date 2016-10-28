@@ -171,7 +171,7 @@ class TensorflowFramework(Framework):
             while p.poll() is None:
                 for line in utils.nonblocking_readlines(p.stdout):
                     timestamp, level, message = TensorflowTrainTask.preprocess_output_tensorflow(line.strip())
-                    if not message and line:
+                    if line is not None:
                         stdout_log += line
             if p.returncode:
                 raise NetworkVisualizationError(stdout_log)

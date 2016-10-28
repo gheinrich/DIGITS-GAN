@@ -20,6 +20,8 @@ from __future__ import print_function
 import time
 
 import datetime
+import functools
+import inspect
 import json
 import logging
 import math
@@ -37,11 +39,14 @@ from tensorflow.core.framework import summary_pb2
 # Local imports
 import utils as digits
 import lr_policy
-import model
+from model import Model, Tower
+from utils import model_property
+
 import tf_data
 
 # Constants
-TF_INTRA_OP_TRHEADS = 6
+TF_INTRA_OP_THREADS = 0
+TF_INTER_OP_THREADS = 0
 MIN_LOGS_PER_TRAIN_EPOCH = 8 # torch default: 8
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',datefmt='%Y-%m-%d %H:%M:%S',
@@ -56,7 +61,7 @@ tf.app.flags.DEFINE_integer(
 tf.app.flags.DEFINE_integer('epoch', 1, """Number of epochs to train, -1 for unbounded""")
 tf.app.flags.DEFINE_string('inference_db', '', """Directory with inference file source""")
 tf.app.flags.DEFINE_integer(
-    'interval', 1, """Number of train epochs to complete, to perform one validation""")
+    'validation_interval', 1, """Number of train epochs to complete, to perform one validation""")
 tf.app.flags.DEFINE_string('labels_list', '', """Text file listing label definitions""")
 tf.app.flags.DEFINE_string('mean', '', """Mean image file""")
 tf.app.flags.DEFINE_float('momentum', '0.9', """Momentum""") # Not used by DIGITS front-end
@@ -166,6 +171,22 @@ def visualize_graph(graph_def, path):
     file_io.write_string_to_file(path, str(graph_def))
     logging.info('Graph Definition Written.')
 
+def average_head_keys(tags, vals):
+    """ Averages keys with same end (head) name.
+    Example: foo1/bar=1 and foo2/bar=2 should collapse to bar=1.5
+    """
+    tail_tags = [w.split('/')[-1] for w in  tags]
+    sums = {}
+    nums = {}
+    for a, b in zip(tail_tags,vals):
+        if a not in sums:
+            sums[a] = b
+            nums[a] = 1
+        else:
+            sums[a] += b
+            nums[a] += 1
+    tags_clean  = sums.keys()
+    return tags_clean, np.asarray(sums.values())/np.asarray(nums.values())
 
 def summary_to_lists(summary_str):
     """ Takes a Tensorflow stringified Summary object and returns only
@@ -183,10 +204,11 @@ def summary_to_lists(summary_str):
     vals = []
     for s in summ.value:
         if s.HasField('simple_value'):# and s.simple_value: # Only parse scalar_summaries
-            if s.simple_value == float('Inf'):
+            if s.simple_value == float('Inf') or np.isnan(s.simple_value):
                 raise ValueError('Model diverged with %s = %s : Try decreasing your learning rate' % (s.tag, s.simple_value))
             tags.append(s.tag)
             vals.append(s.simple_value)
+    tags, vals = average_head_keys(tags, vals)
     vals = np.asarray(vals)
     return tags, vals
 
@@ -237,7 +259,11 @@ def save_snapshot(sess, saver, save_dir, snapshot_prefix, epoch, for_serving=Fal
     Saves a snapshot of the current session, saving all variables previously defined
     in the ctor of the saver. Also saves the flow of the graph itself (only once).
     """
-    snapshot_file = os.path.join(save_dir, snapshot_prefix + '_' + str(epoch) + '.ckpt')
+    number_dec = str(FLAGS.snapshotInterval-int(FLAGS.snapshotInterval))[2:]
+    if number_dec is '' : number_dec = '0'
+    epoch_fmt = "{:." + number_dec + "f}"
+
+    snapshot_file = os.path.join(save_dir, snapshot_prefix + '_' + epoch_fmt.format(epoch) + '.ckpt')
 
     logging.info('Snapshotting to %s', snapshot_file)
     saver.save(sess, snapshot_file)
@@ -350,6 +376,9 @@ def main(_):
     default_device = '/gpu:0' if FLAGS.type == 'gpu' else '/cpu:0'
     with tf.Graph().as_default(), tf.device(default_device):
 
+        if FLAGS.validation_interval == 0:
+            FLAGS.validation_db = None
+
         # Set Tensorboard log directory
         if FLAGS.summaries_dir:
             # The following gives a nice but unrobust timestamp
@@ -367,7 +396,7 @@ def main(_):
         logging.info("Train batch size is %s and validation batch size is %s", batch_size_train, batch_size_val)
 
         # This variable keeps track of next epoch, when to perform validation.
-        next_validation = FLAGS.interval
+        next_validation = FLAGS.validation_interval
         logging.info("Training epochs to be completed for each validation : %s", next_validation)
         last_validation_epoch = 0
 
@@ -418,64 +447,51 @@ def main(_):
                 },
             }
 
-        input_shape = []
-
         # Import the network file
         path_network = os.path.join(os.path.dirname(os.path.realpath(__file__)), FLAGS.networkDirectory, FLAGS.network)
         exec(open(path_network).read(), globals())
+
         try:
-            build_model
+            UserModel
         except NameError:
-            logging.error("The user model build function 'build_model' is not defined.")
+            logging.error("The user model class 'UserModel' is not defined.")
             exit(-1)
-
-        if not callable(build_model):
-            logging.error("The user model build function 'build_model' is not callable, it is of type (%s)", type(build_model))
+        if not inspect.isclass(UserModel):
+            logging.error("The user model class 'UserModel' is not a class.")
             exit(-1)
-
-        # Create the network template
-        network_template = template.make_template(digits.GraphKeys.TEMPLATE, build_model)
+        # @TODO(tzaman) - add mode checks to UserModel
 
         if FLAGS.train_db:
-            #with tf.name_scope(self.stage): #@TODO(tzaman) - implement me !
-            with tf.name_scope(digits.STAGE_TRAIN):
-                train_model = model.Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses)
+            with tf.name_scope(digits.STAGE_TRAIN) as stage_scope:
+                train_model = Model(digits.STAGE_TRAIN, FLAGS.croplen, nclasses, FLAGS.optimization, FLAGS.momentum)
                 train_model.create_dataloader(FLAGS.train_db)
                 train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
                 train_model.dataloader.set_augmentation(mean_loader, aug_dict)
-                train_model.init_dataloader()
-                input_shape = train_model.dataloader.get_shape()
-                train_model.set_optimizer(FLAGS.optimization, FLAGS.momentum)
-                train_model.create_model_from_template(network_template)
+                train_model.create_model(UserModel, stage_scope)
  
         if FLAGS.validation_db:
-            with tf.name_scope(digits.STAGE_VAL):
-                val_model = model.Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
+            with tf.name_scope(digits.STAGE_VAL) as stage_scope:
+                val_model = Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
                 val_model.create_dataloader(FLAGS.validation_db)
                 val_model.dataloader.setup(FLAGS.validation_labels, False, FLAGS.bitdepth, batch_size_val, 1e9, FLAGS.seed) # @TODO(tzaman): set numepochs to 1
                 val_model.dataloader.set_augmentation(mean_loader)
-                val_model.init_dataloader()
-                if not input_shape:
-                    input_shape = val_model.dataloader.get_shape()
-                val_model.create_model_from_template(network_template)
+                val_model.create_model(UserModel, stage_scope)
 
         if FLAGS.inference_db:
-            with tf.name_scope(digits.STAGE_INF):
-                inf_model = model.Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
+            with tf.name_scope(digits.STAGE_INF) as stage_scope:
+                inf_model = Model(digits.STAGE_INF, FLAGS.croplen, nclasses)
                 inf_model.create_dataloader(FLAGS.inference_db)
                 inf_model.dataloader.setup(None, False, FLAGS.bitdepth, FLAGS.batch_size, 1, FLAGS.seed)
                 inf_model.dataloader.set_augmentation(mean_loader)
-                inf_model.init_dataloader()
-                if not input_shape:
-                    input_shape = inf_model.dataloader.get_shape()
-                inf_model.create_model_from_template(network_template)
+                inf_model.create_model(UserModel, stage_scope)
 
         # Start running operations on the Graph. allow_soft_placement must be set to
         # True to build towers on GPU, as some of the ops do not have GPU
         # implementations.
         sess = tf.Session(config=tf.ConfigProto(
             allow_soft_placement=True, # will automatically do non-gpu supported ops on cpu
-            intra_op_parallelism_threads=TF_INTRA_OP_TRHEADS,
+            inter_op_parallelism_threads=TF_INTER_OP_THREADS,
+            intra_op_parallelism_threads=TF_INTRA_OP_THREADS,
             log_device_placement=FLAGS.log_device_placement))
 
         if FLAGS.visualizeModelPath:
@@ -522,14 +538,6 @@ def main(_):
 
         
         if FLAGS.train_db:
-            # epoch value will be calculated for every batch size. To maintain unique epoch value between batches, it needs to be rounded to the required number of significant digits.
-            epoch_round = 0 # holds the required number of significant digits for round function.
-            tmp_batchsize = batch_size_train
-            while tmp_batchsize <= train_model.dataloader.get_total():
-                tmp_batchsize = tmp_batchsize * 10
-                epoch_round += 1
-            logging.info("While logging, epoch value will be rounded to %s significant digits", epoch_round)
-
             # During training, a log output should occur at least X times per epoch or every X images, whichever lower
             train_steps_per_epoch = train_model.dataloader.get_total() / batch_size_train
             if math.ceil(train_steps_per_epoch/MIN_LOGS_PER_TRAIN_EPOCH) < math.ceil(5000/batch_size_train):
@@ -537,6 +545,14 @@ def main(_):
             else:
                 logging_interval_step = int(math.ceil(5000/batch_size_train))
             logging.info("During training. details will be logged after every %s steps (batches)", logging_interval_step)
+
+            # epoch value will be calculated for every batch size. To maintain unique epoch value between batches, it needs to be rounded to the required number of significant digits.
+            epoch_round = 0 # holds the required number of significant digits for round function.
+            tmp_batchsize = batch_size_train*logging_interval_step
+            while tmp_batchsize <= train_model.dataloader.get_total():
+                tmp_batchsize = tmp_batchsize * 10
+                epoch_round += 1
+            logging.info("While logging, epoch value will be rounded to %s significant digits", epoch_round)
 
             # Create the learning rate policy
             total_training_steps = train_model.dataloader.num_epochs * train_model.dataloader.get_total() / train_model.dataloader.batch_size
@@ -568,7 +584,7 @@ def main(_):
                             options=run_options,
                             run_metadata=run_metadata)
 
-                    logging.info(sess.run(queue_size_op))
+                    #logging.info(sess.run(queue_size_op)) # DEVELOPMENT: for checking the queue size
 
                     if log_runtime:
                         writer.add_run_metadata(run_metadata, str(step))
@@ -581,11 +597,11 @@ def main(_):
 
                     print_vals_sum = print_vals + print_vals_sum
 
-                    # @TODO(tzaman): account for variable batch_size value on last epoch
+                    # @TODO(tzaman): account for variable batch_size value on very last epoch
                     current_epoch = round((step * batch_size_train) / train_model.dataloader.get_total(), epoch_round)
 
                     # Start with a forward pass
-                    if (step == 1) or ((step % logging_interval_step) == 0):
+                    if ((step % logging_interval_step) == 0):
                         steps_since_log = step - step_last_log 
                         print_list = print_summarylist(tags, print_vals_sum/steps_since_log)
                         logging.info("Training (epoch " + str(current_epoch) + "): " + print_list)
@@ -595,8 +611,8 @@ def main(_):
                     # Potential Validation Pass
                     if FLAGS.validation_db and current_epoch >= next_validation:
                         Validation(sess, val_model, current_epoch)
-                        # Find next nearest epoch value that exactly divisible by FLAGS.interval:
-                        next_validation = (round(float(current_epoch)/FLAGS.interval) + 1) * FLAGS.interval 
+                        # Find next nearest epoch value that exactly divisible by FLAGS.validation_interval:
+                        next_validation = (round(float(current_epoch)/FLAGS.validation_interval) + 1) * FLAGS.validation_interval 
                         last_validation_epoch = current_epoch
 
                     # Saving Snapshot
