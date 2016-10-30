@@ -82,7 +82,6 @@ tf.app.flags.DEFINE_string('train_db', '', """Directory with training file sourc
 tf.app.flags.DEFINE_string(
     'train_labels', '',
     """Directory with an optional and seperate labels file source for training""")
-tf.app.flags.DEFINE_string('type', 'cpu', """Hardware acceleration: (cpu, gpu)""")
 tf.app.flags.DEFINE_string('validation_db', '', """Directory with validation file source""")
 tf.app.flags.DEFINE_string(
     'validation_labels', '',
@@ -372,9 +371,8 @@ def loadLabels(filename):
 
 def main(_):
 
-    # Always set a default device. Soms specific operations will later override this device.
-    default_device = '/gpu:0' if FLAGS.type == 'gpu' else '/cpu:0'
-    with tf.Graph().as_default(), tf.device(default_device):
+    # Always keep the cpu as default
+    with tf.Graph().as_default(), tf.device('/cpu:0'):
 
         if FLAGS.validation_interval == 0:
             FLAGS.validation_db = None

@@ -130,7 +130,7 @@ class Model(object):
 
                     tower_model = self.add_tower(obj_tower=obj_UserModel, x=batch_x_split[dev_i], y=batch_y_split[dev_i])
 
-                    with tf.variable_scope('model', reuse=dev_i > 0):
+                    with tf.variable_scope(digits.GraphKeys.MODEL, reuse=dev_i > 0):
                         tower_model.inference # touch to initialize
                 
                     if self.stage == digits.STAGE_INF:
@@ -201,13 +201,6 @@ class Model(object):
         """
         Merge train summaries
         """
-
-        # The below get_collection() commands retrieve any summaries that have been set by the user
-        # in the model
-        # @TODO(tzaman) - REIMPLEMENT THESE SUMMARIES
-        #sum_keys = digits.GraphKeys.SUMMARIES_TRAIN if self.stage == 'train' else digits.GraphKeys.SUMMARIES_VAL
-        #self.summaries += tf.get_collection(sum_keys, scope=self.stage+'.*')
-
         for t in self.towers:
             self.summaries += t.summaries
 

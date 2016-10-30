@@ -111,6 +111,7 @@ class TensorflowFramework(Framework):
         solver_type = kwargs['solver_type'].lower() if kwargs['solver_type'] else None
         use_mean = kwargs['use_mean']
         crop_size = kwargs['crop_size']
+        num_gpus = kwargs['num_gpus']
         if dataset is None:
             raise NetworkVisualizationError('Make sure a dataset is selected to visualize this network.')
 
@@ -132,7 +133,6 @@ class TensorflowFramework(Framework):
                     '--networkDirectory=%s' % os.path.dirname(temp_network_path),
                     '--visualizeModelPath=%s' % temp_graphdef_path,
                     '--optimization=%s' % solver_type,
-                    '--type=cpu', # Force a cpu visualization because two tf instances pointing to the same gpu will make things freeze
                     ]
 
             if crop_size:
@@ -160,11 +160,16 @@ class TensorflowFramework(Framework):
             if val_label_db_path:
                 args.append('--validation_labels=%s' % val_label_db_path)
 
+            env = os.environ.copy()
+            # make only a selected number of GPUs visible. The ID is not important for just the vis
+            env['CUDA_VISIBLE_DEVICES'] = ",".join([str(i) for i in range(0,int(num_gpus))])
+
             # execute command
             p = subprocess.Popen(args,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
                         close_fds=True,
+                        env=env
                         )
 
             stdout_log = ''

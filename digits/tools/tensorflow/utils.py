@@ -18,11 +18,8 @@ STAGE_INF = 'inf'
 
 class GraphKeys(object):
     TEMPLATE = "model"
-    #SUMMARIES_TRAIN = "summaries_train"
-    #SUMMARIES_VAL =  "summaries_val"
-    #SUMMARIES_INF =  "summaries_inf"
     QUEUE_RUNNERS = "queue_runner"
-    #MODEL = "model"
+    MODEL = "model"
     LOSS = "loss" # The namescope
     LOSSES = "losses" # The collection
     LOADER = "data"

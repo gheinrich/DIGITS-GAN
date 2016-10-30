@@ -609,7 +609,14 @@ function process_tf_vis(data){
 
 function visualizeNetwork() {
     var framework = $('#framework').val();
-    var is_tf = framework.includes("ensorflow")
+    var is_tf = framework.includes("ensorflow") // @TODO(tzaman) - dirty
+    var num_sel_gpus = 0
+    var sel_gpus = $("#select_gpus").val()
+    if (sel_gpus) {
+        num_sel_gpus = sel_gpus.length
+    } else if ($("#select_gpu_count").val()) {
+        num_sel_gpus = $("#select_gpu_count").val()
+    }
     var bootboxClass = (is_tf ? "full-bootbox" : "wide-bootbox");
     syncAceEditor(); // Sync ace editor to custom_network editor
     var bbox_content = $('<div class="text-center"><i class="glyphicon glyphicon-refresh glyphicon-spin"></i> Loading...</div>' );
@@ -627,6 +634,7 @@ function visualizeNetwork() {
                 solver_type: $('#solver_type').val(),
                 use_mean: document.getElementById('use_mean').value,
                 crop_size: document.getElementById('crop_size').value,
+                num_gpus: num_sel_gpus,
                 },
             }
         )

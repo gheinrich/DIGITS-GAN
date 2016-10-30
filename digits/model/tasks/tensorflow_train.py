@@ -233,11 +233,6 @@ class TensorflowTrainTask(TrainTask):
             # CUDA libraries and allocate memory on all visible GPUs by
             # default.
             env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices(identifiers)
-            # switch to GPU mode
-            args.append('--type=gpu')
-        else:
-            # switch to CPU mode
-            args.append('--type=cpu')
 
         if self.pretrained_model:
             args.append('--weights=%s' % self.path(self.pretrained_model))
@@ -526,11 +521,9 @@ class TensorflowTrainTask(TrainTask):
         env = os.environ.copy()
 
         if gpu is not None:
-            args.append('--type=gpu')
             # make only the selected GPU visible
             env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices([gpu])
-        else:
-            args.append('--type=cpu')
+
 
         p = subprocess.Popen(args,
                 stdout=subprocess.PIPE,
@@ -813,11 +806,8 @@ class TensorflowTrainTask(TrainTask):
 
             env = os.environ.copy()
             if gpu is not None:
-                args.append('--type=gpu')
                 # make only the selected GPU visible
                 env['CUDA_VISIBLE_DEVICES'] = subprocess_visible_devices([gpu])
-            else:
-                args.append('--type=cpu')
 
             unrecognized_output = []
             predictions = []
