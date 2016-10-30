@@ -25,7 +25,7 @@ class TensorflowFramework(Framework):
     """
 
     # short descriptive name
-    NAME = 'Tensorflow (experimental)'
+    NAME = 'Tensorflow'
 
     # identifier of framework class
     CLASS = 'tensorflow'
