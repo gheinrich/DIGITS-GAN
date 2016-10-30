@@ -372,7 +372,7 @@ class LoaderFactory(object):
                     batch_size=self.batch_size,
                     num_threads=NUM_THREADS_DATA_LOADER,
                     capacity=10*self.batch_size, # Max amount that will be loaded and queued
-                    shapes=[[0],[self.height, self.width, self.channels],[]], # Only makes sense is dynamic_pad=False #@TODO(tzaman) - FIXME
+                    shapes=[[0], self.get_shape(), []], # Only makes sense is dynamic_pad=False #@TODO(tzaman) - FIXME
                     min_after_dequeue=5*self.batch_size,
                     allow_smaller_final_batch=True, # Happens if total%batch_size!=0
                     name='batcher'
