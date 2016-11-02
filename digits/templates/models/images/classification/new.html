@@ -130,6 +130,11 @@ $("#dataset").change();
                     {{form.val_interval.tooltip}}
                     {{form.val_interval(class='form-control')}}
                 </div>
+                <div class="form-group{{mark_errors([form.val_interval])}}" id="timeline-traces" style="display:none;">
+                    {{form.traces_interval.label}}
+                    {{form.traces_interval.tooltip}}
+                    {{form.traces_interval(class='form-control')}}
+                </div>
                 {# TODO: neat progress bar #}
                 <div class="form-group{{mark_errors([form.random_seed])}}">
                     {{form.random_seed.label}}
@@ -441,6 +446,7 @@ framework = {
     can_shuffle : '{{ fw.can_shuffle_data() }}'=='True',
     can_accumulate_gradients : '{{ fw.can_accumulate_gradients() }}'=='True',
     supports_python_layers_file : '{{ fw.supports_python_layers_file() }}'=='True',
+    supports_timeline_traces : '{{ fw.supports_timeline_traces() }}'=='True',
     data_aug_types : [{% for dttype in fw.SUPPORTED_DATA_AUGMENTATION_TYPES %} '{{dttype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
     data_trans_types : [{% for datype in fw.SUPPORTED_DATA_TRANSFORMATION_TYPES %} '{{datype}}' {% if not loop.last %} , {% endif %} {% endfor %}],
     };
@@ -465,6 +471,11 @@ function setFramework(fwid)
         $("#python-layers").show();
     else
         $("#python-layers").hide();
+
+    if (frameworks[fwid].supports_timeline_traces)
+        $("#timeline-traces").show();
+    else
+        $("#timeline-traces").hide();
 
     $(".data-transformation-input").hide();
     $(".data-augmentation-input").hide();

@@ -41,6 +41,7 @@ class TrainTask(Task):
         batch_size -- if set, override any network specific batch_size with this value
         batch_accumulation -- accumulate gradients over multiple batches
         val_interval -- how many epochs between validating the model with an epoch of validation data
+        traces_interval -- amount of steps in between timeline traces
         pretrained_model -- filename for a model to use for fine-tuning
         crop_size -- crop each image down to a square of this size
         use_mean -- subtract the dataset's mean file or mean pixel
@@ -52,6 +53,7 @@ class TrainTask(Task):
         self.batch_size = kwargs.pop('batch_size', None)
         self.batch_accumulation = kwargs.pop('batch_accumulation', None)
         self.val_interval = kwargs.pop('val_interval', None)
+        self.traces_interval = kwargs.pop('traces_interval', None)
         self.pretrained_model = kwargs.pop('pretrained_model', None)
         self.crop_size = kwargs.pop('crop_size', None)
         self.use_mean = kwargs.pop('use_mean', None)
@@ -377,13 +379,6 @@ class TrainTask(Task):
         if hasattr(self, '_hw_socketio_thread'):
             self._hw_socketio_thread.kill()
 
-    def detect_timeline_traces(self):
-        """
-        Populate self.timeline_traces with snapshots that exist on disk
-        Returns True if at least one usable snapshot is found
-        """
-        return False
-
     def detect_snapshots(self):
         """
         Populate self.snapshots with snapshots that exist on disk
@@ -516,6 +511,19 @@ class TrainTask(Task):
                     'lr': 'Learning Rate'
                     },
                 }
+
+    def detect_timeline_traces(self):
+        """
+        Populate self.timeline_traces with snapshots that exist on disk
+        Returns True if at least one usable snapshot is found
+        """
+        return False
+
+    def has_timeline_traces(self):
+        """
+        Evaluates if there are timeline traces to be viewed at all
+        """
+        return len(self.timeline_traces) > 0
 
     def timeline_trace(self, tid):
         """

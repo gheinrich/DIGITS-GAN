@@ -34,6 +34,7 @@ class CaffeFramework(Framework):
     # whether this framework can shuffle data during training
     CAN_SHUFFLE_DATA = False
     SUPPORTS_PYTHON_LAYERS_FILE = True
+    SUPPORTS_TIMELINE_TRACING = False
 
     if config_value('caffe')['flavor'] == 'NVIDIA':
         if parse_version(config_value('caffe')['version']) > parse_version('0.14.0-alpha'):

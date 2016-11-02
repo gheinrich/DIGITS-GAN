@@ -121,7 +121,7 @@ tf.app.flags.DEFINE_boolean(
     'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer(
-    'log_runtime_stats_per_step', 100,
+    'log_runtime_stats_per_step', 0,
     """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
 # Augmentation

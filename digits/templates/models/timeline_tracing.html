@@ -36,12 +36,14 @@
     </div>
 </div>
 
-<div class="well" style="width:100vw; margin-top:12px; position:absolute; left:0px;" id="timeline-trace"></div>
+<style>#trace-viewer:focus { outline: none; }</style>
+<div id="timeline-trace" style="width:100vw; padding:20px;position:absolute; left:0px;"></div>
 
 <script type="text/javascript">
+var tlt = new TimelineTrace('timeline-trace');
+
+var job_id ='{{job.id()}}';
 function updateTimelineList(data) {
-    console.log('updateTimelineList()');
-    console.log(data);
     for (var i=0; i<data.length; i++) {
         option = data[i];
         $("#timeline-trace-list").append('<option value="'+option[0]+'">'+option[1]+'</option>');
@@ -49,34 +51,26 @@ function updateTimelineList(data) {
 }
 updateTimelineList({% autoescape false %}{{ task.timeline_trace_list() }}{% endautoescape %});
 
-function getTimelineData() {
-    $.ajax("{{url_for('digits.model.views.visualize_lr')}}",
+function showTimeline() {
+    var e = document.getElementById("timeline-trace-list");
+    var step = e.options[e.selectedIndex].value;
+
+    $.ajax("{{url_for('digits.model.views.timeline_trace_data')}}",
     {
         type: "POST",
-        data: $(".learning-rate-option").serialize()
+        data: {'step': step, job_id: job_id},
     }
     )
     .done(function(data) {
-        drawLRGraph($.parseJSON(data));
+        tlt.onResult(step, $.parseJSON(data));
     })
     .fail(function(data) {
-        $("#visualize-lr-graph").html("");
         errorAlert(data);
     });
     return false;
 }
 
-function showTimeline() {
-    console.log('showTimeline()');
-    var e = document.getElementById("timeline-trace-list");
-    var val = e.options[e.selectedIndex].value;
-    console.log(val);
-    var data = {% autoescape false %}{{ task.timeline_trace(501) }}{% endautoescape %};
-    console.log(data);
-    onResult(data);
-}
 
-initTimeline('timeline-trace');
 </script>
 
 {% endblock %}

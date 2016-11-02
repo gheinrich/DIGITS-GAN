@@ -31,6 +31,12 @@ class Framework(object):
         """
         return self.SUPPORTS_PYTHON_LAYERS_FILE
 
+    def supports_timeline_traces(self):
+        """
+        return whether framework supports creating timeline traces
+        """
+        return self.SUPPORTS_TIMELINE_TRACING
+
     def supports_solver_type(self, solver_type):
         """
         return whether framework supports this solver_type

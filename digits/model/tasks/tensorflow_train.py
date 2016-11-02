@@ -28,6 +28,7 @@ PICKLE_VERSION = 1
 # Constants
 TENSORFLOW_MODEL_FILE = 'network.py'
 TENSORFLOW_SNAPSHOT_PREFIX = 'snapshot'
+TIMELINE_PREFIX = 'timeline'
 
 def subprocess_visible_devices(gpus):
     """
@@ -222,7 +223,11 @@ class TensorflowTrainTask(TrainTask):
         else:
             raise ValueError('Unknown solver_type %s' % self.solver_type)
 
-        args.append('--validation_interval=%d' % self.val_interval)
+        if self.val_interval is not None:
+            args.append('--validation_interval=%d' % self.val_interval)
+
+        #if self.traces_interval is not None:
+        args.append('--log_runtime_stats_per_step=%d' % self.traces_interval)
 
         if 'gpus' in resources:
             identifiers = []
@@ -420,11 +425,9 @@ class TensorflowTrainTask(TrainTask):
 
     @override
     def detect_timeline_traces(self):
-        print('detect_timeline_traces()')
         timeline_traces = []
         for filename in os.listdir(self.job_dir):
-            TIMELINE_PREFIX = 'timeline'
-            # find models
+            # find timeline jsons
             match = re.match(r'%s_(.*)\.json$' % TIMELINE_PREFIX, filename)
             if match:
                 step = int(match.group(1))

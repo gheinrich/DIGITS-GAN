@@ -33,6 +33,7 @@ class TensorflowFramework(Framework):
     # whether this framework can shuffle data during training
     CAN_SHUFFLE_DATA = True
     SUPPORTS_PYTHON_LAYERS_FILE = False
+    SUPPORTS_TIMELINE_TRACING = True
 
     SUPPORTED_SOLVER_TYPES = ['SGD','ADADELTA','ADAGRAD','ADAGRADDA','MOMENTUM','ADAM','FTRL','RMSPROP']
 

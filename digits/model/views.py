@@ -18,7 +18,7 @@ from . import ModelJob
 from digits.pretrained_model.job import PretrainedModelJob
 from digits import frameworks, extensions
 from digits.utils import time_filters, auth
-from digits.utils.routing import request_wants_json
+from digits.utils.routing import request_wants_json, job_from_request, get_request_arg
 from digits.webapp import scheduler
 
 blueprint = flask.Blueprint(__name__, __name__)
@@ -96,6 +96,16 @@ def customize():
             'snapshot': snapshot
             })
 
+@blueprint.route('/timeline_trace_data', methods=['POST'])
+def timeline_trace_data():
+    """
+    Shows timeline trace of a model
+    """
+    job = job_from_request()
+    step = get_request_arg('step')
+    if step is None:
+        raise werkzeug.exceptions.BadRequest('step is a required field')
+    return job.train_task().timeline_trace(int(step))
 
 @blueprint.route('/view-config/<extension_id>', methods=['GET'])
 def view_config(extension_id):

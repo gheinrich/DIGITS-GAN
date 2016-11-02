@@ -33,6 +33,7 @@ class TorchFramework(Framework):
     # whether this framework can shuffle data during training
     CAN_SHUFFLE_DATA = True
     SUPPORTS_PYTHON_LAYERS_FILE = False
+    SUPPORTS_TIMELINE_TRACING = False
 
     SUPPORTED_SOLVER_TYPES = ['SGD', 'NESTEROV', 'ADAGRAD',
                               'RMSPROP', 'ADADELTA', 'ADAM']

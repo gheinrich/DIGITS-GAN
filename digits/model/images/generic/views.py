@@ -252,6 +252,7 @@ def create(extension_id=None):
                         batch_size = form.batch_size.data[0],
                         batch_accumulation = form.batch_accumulation.data,
                         val_interval = form.val_interval.data,
+                        traces_interval = form.traces_interval.data,
                         pretrained_model = pretrained_model,
                         crop_size = form.crop_size.data,
                         use_mean = form.use_mean.data,
