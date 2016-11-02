@@ -121,7 +121,7 @@ tf.app.flags.DEFINE_boolean(
     'serving_export', False, """Flag for exporting an Tensorflow Serving model""")
 tf.app.flags.DEFINE_boolean('log_device_placement', False, """Whether to log device placement.""")
 tf.app.flags.DEFINE_integer(
-    'log_runtime_stats_per_step', 0,
+    'log_runtime_stats_per_step', 100,
     """Logs runtime statistics for Tensorboard every x steps, defaults to 0 (off).""")
 
 # Augmentation
@@ -145,10 +145,11 @@ tf.app.flags.DEFINE_float(
 
 def save_timeline_trace(run_metadata, save_dir, step):
     tl = timeline.Timeline(run_metadata.step_stats)
-    ctf = tl.generate_chrome_trace_format()
+    ctf = tl.generate_chrome_trace_format(show_memory=True)
     tl_fn = os.path.join(save_dir, 'timeline_%s.json' % step)
     with open(tl_fn, 'w') as f:
         f.write(ctf)
+    logging.info('Timeline trace written to %s', tl_fn)
 
 def strip_data_from_graph_def(graph_def):
     strip_def = tf.GraphDef()
@@ -586,7 +587,7 @@ def main(_):
 
                     if log_runtime:
                         writer.add_run_metadata(run_metadata, str(step))
-                        save_timeline_trace(run_metadata, FLAGS.save, step)
+                        save_timeline_trace(run_metadata, FLAGS.save, int(step))
 
                     writer.add_summary(summary_str, step)
 

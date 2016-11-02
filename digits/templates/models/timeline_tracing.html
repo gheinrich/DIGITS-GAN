@@ -1,0 +1,82 @@
+{# Copyright (c) 2016-2017, NVIDIA CORPORATION.  All rights reserved. #}
+
+{% extends "layout.html" %}
+
+{% block title %}
+{{job.name()}} - Timeline Trace
+{% endblock %}
+
+{% block head %}
+<script src="{{ url_for('static', filename='js/timeline-tracing.js', ver=dir_hash) }}"></script>
+<link rel="import" href="{{ url_for('static', filename='tb/trace_viewer_full.html', ver=dir_hash) }}">
+{% endblock %}
+
+{% block nav %}
+<li class="active"><a href="{{ url_for('digits.views.show_job', job_id=job.id()) }}">{{job.job_type()}}</a></li>
+{% endblock %}
+
+{% block content %}
+
+{% set task = job.train_task() %}
+
+<div class="page-header">
+    <h1>Timeline Trace</h1>
+</div>
+
+<div class="container">
+    <div class="row">
+        <div class="col-xs-2">
+            <select id="timeline-trace-list" name="timeline-trace-list" class="form-control"></select>
+        </div>
+        <div class="col-xs-2">
+            <button class="btn btn-info" onclick="showTimeline()">
+                Show Timeline Trace
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="well" style="width:100vw; margin-top:12px; position:absolute; left:0px;" id="timeline-trace"></div>
+
+<script type="text/javascript">
+function updateTimelineList(data) {
+    console.log('updateTimelineList()');
+    console.log(data);
+    for (var i=0; i<data.length; i++) {
+        option = data[i];
+        $("#timeline-trace-list").append('<option value="'+option[0]+'">'+option[1]+'</option>');
+    }
+}
+updateTimelineList({% autoescape false %}{{ task.timeline_trace_list() }}{% endautoescape %});
+
+function getTimelineData() {
+    $.ajax("{{url_for('digits.model.views.visualize_lr')}}",
+    {
+        type: "POST",
+        data: $(".learning-rate-option").serialize()
+    }
+    )
+    .done(function(data) {
+        drawLRGraph($.parseJSON(data));
+    })
+    .fail(function(data) {
+        $("#visualize-lr-graph").html("");
+        errorAlert(data);
+    });
+    return false;
+}
+
+function showTimeline() {
+    console.log('showTimeline()');
+    var e = document.getElementById("timeline-trace-list");
+    var val = e.options[e.selectedIndex].value;
+    console.log(val);
+    var data = {% autoescape false %}{{ task.timeline_trace(501) }}{% endautoescape %};
+    console.log(data);
+    onResult(data);
+}
+
+initTimeline('timeline-trace');
+</script>
+
+{% endblock %}

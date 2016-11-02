@@ -75,6 +75,7 @@ class TrainTask(Task):
 
         self.current_epoch = 0
         self.snapshots = []
+        self.timeline_traces = []
 
         # data gets stored as dicts of lists (for graphing)
         self.train_outputs = OrderedDict()
@@ -120,6 +121,7 @@ class TrainTask(Task):
         super(TrainTask, self).__setstate__(state)
 
         self.snapshots = []
+        self.timeline_traces = []
         self.dataset = None
 
     @override
@@ -375,6 +377,13 @@ class TrainTask(Task):
         if hasattr(self, '_hw_socketio_thread'):
             self._hw_socketio_thread.kill()
 
+    def detect_timeline_traces(self):
+        """
+        Populate self.timeline_traces with snapshots that exist on disk
+        Returns True if at least one usable snapshot is found
+        """
+        return False
+
     def detect_snapshots(self):
         """
         Populate self.snapshots with snapshots that exist on disk
@@ -507,6 +516,24 @@ class TrainTask(Task):
                     'lr': 'Learning Rate'
                     },
                 }
+
+    def timeline_trace(self, tid):
+        """
+        Returns the data of a selected timeline trace
+        """
+        for item in self.timeline_traces:
+            if item[1] == tid:
+                fn = item[0]
+                with open(fn, 'r') as file_data:
+                    return file_data.read()
+
+        raise ValueError('Requested timeline not found in timeline list')
+
+    def timeline_trace_list(self):
+        """
+        Returns an array of timeline trace id's for creating an HTML select field
+        """
+        return [[s[1], 'Trace #%s' % s[1]] for s in reversed(self.timeline_traces)]
 
     def combined_graph_data(self, cull=True):
         """

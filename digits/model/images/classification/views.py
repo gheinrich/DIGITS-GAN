@@ -332,6 +332,15 @@ def show(job, related_jobs=None):
     """
     return flask.render_template('models/images/classification/show.html', job=job, framework_ids = [fw.get_id() for fw in frameworks.get_frameworks()], related_jobs=related_jobs)
 
+@blueprint.route('/timeline_tracing', methods=['GET'])
+def timeline_tracing():
+    """
+    Shows timeline trace of a model
+    """
+    job = job_from_request()
+
+    return flask.render_template('models/timeline_tracing.html', job=job)
+
 @blueprint.route('/large_graph', methods=['GET'])
 def large_graph():
     """
@@ -339,7 +348,7 @@ def large_graph():
     """
     job = job_from_request()
 
-    return flask.render_template('models/images/classification/large_graph.html', job=job)
+    return flask.render_template('models/large_graph.html', job=job)
 
 @blueprint.route('/classify_one.json', methods=['POST'])
 @blueprint.route('/classify_one', methods=['POST', 'GET'])

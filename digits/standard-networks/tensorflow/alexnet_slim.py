@@ -5,7 +5,7 @@ class UserModel(Tower):
         x = tf.reshape(self.x, shape=[-1, self.input_shape[0], self.input_shape[1], self.input_shape[2]])
         with slim.arg_scope([slim.conv2d, slim.fully_connected], 
                             weights_initializer=tf.contrib.layers.xavier_initializer(),
-                            weights_regularizer=slim.l2_regularizer(0.0005) ):
+                            weights_regularizer=slim.l2_regularizer(1e-6) ):
             model = slim.conv2d(x, 96, [11, 11], 4, padding='VALID', scope='conv1')
             model = slim.max_pool2d(model, [3, 3], 2, scope='pool1')
             model = slim.conv2d(model, 256, [5, 5], 1, scope='conv2')

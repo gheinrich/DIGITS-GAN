@@ -316,6 +316,14 @@ def show(job, related_jobs=None):
         inference_form_html=inference_form_html,
         )
 
+@blueprint.route('/timeline_tracing', methods=['GET'])
+def timeline_tracing():
+    """
+    Shows timeline trace of a model
+    """
+    job = job_from_request()
+
+    return flask.render_template('models/timeline_tracing.html', job=job)
 
 @blueprint.route('/large_graph', methods=['GET'])
 def large_graph():
@@ -324,7 +332,7 @@ def large_graph():
     """
     job = job_from_request()
 
-    return flask.render_template('models/images/generic/large_graph.html', job=job)
+    return flask.render_template('models/large_graph.html', job=job)
 
 @blueprint.route('/infer_one.json', methods=['POST'])
 @blueprint.route('/infer_one', methods=['POST', 'GET'])

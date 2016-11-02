@@ -309,6 +309,12 @@ class TensorflowTrainTask(TrainTask):
             self.logger.debug(message)
             return True
 
+        # timeline trace saved
+        if message.startswith('Timeline trace written to'):
+            self.logger.info(message)
+            self.detect_timeline_traces()
+            return True
+
         # snapshot saved
         if self.saving_snapshot:
             if message.startswith('Snapshot saved'):
@@ -411,6 +417,20 @@ class TensorflowTrainTask(TrainTask):
 
             if 'DIGITS_MODE_TEST' in os.environ:
                 print output
+
+    @override
+    def detect_timeline_traces(self):
+        print('detect_timeline_traces()')
+        timeline_traces = []
+        for filename in os.listdir(self.job_dir):
+            TIMELINE_PREFIX = 'timeline'
+            # find models
+            match = re.match(r'%s_(.*)\.json$' % TIMELINE_PREFIX, filename)
+            if match:
+                step = int(match.group(1))
+                timeline_traces.append((os.path.join(self.job_dir, filename), step ))
+        self.timeline_traces = sorted(timeline_traces, key=lambda tup: tup[1])
+        return len(self.timeline_traces) > 0
 
     @override
     def detect_snapshots(self):

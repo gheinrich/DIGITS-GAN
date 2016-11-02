@@ -49,7 +49,7 @@ def constrastive_loss(lhs, rhs, y, margin=1.0):
     """ Contrastive loss confirming to the Caffe definition
     """
     d = tf.reduce_sum(tf.square(tf.sub(lhs,rhs)), 1)
-    d_sqrt = tf.sqrt(d)
+    d_sqrt = tf.sqrt(1e-6 + d)
     loss = (y * d) + ((1 - y) * tf.square(tf.maximum(margin - d_sqrt, 0)))
     return tf.reduce_mean(loss) # Note: constant component removed (/2)
 

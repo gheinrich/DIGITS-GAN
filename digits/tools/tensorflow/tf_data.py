@@ -30,7 +30,7 @@ import utils as digits
 # Constants
 MIN_FRACTION_OF_EXAMPLES_IN_QUEUE = 0.4
 MAX_ABSOLUTE_EXAMPLES_IN_QUEUE = 4096 # The queue size cannot exceed this number
-NUM_THREADS_DATA_LOADER = 10
+NUM_THREADS_DATA_LOADER = 6
 LOG_MEAN_FILE = False # Logs the mean file as loaded in TF to TB
 
 # Supported extensions for Loaders
@@ -664,7 +664,9 @@ class TFRecordsLoader(LoaderFactory):
         return tf.train.string_input_producer(self.shard_paths,
                                               num_epochs=self.num_epochs,
                                               shuffle=self.shuffle,
-                                              seed=self._seed)
+                                              seed=self._seed,
+                                              name='input_producer'
+                                              )
 
     def get_single_data(self, key_queue):
         """
