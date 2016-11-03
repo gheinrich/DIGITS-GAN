@@ -94,20 +94,7 @@ class InferenceForm(Form):
     """
     A form used to perform inference on a text classification dataset
     """
-    test_image_file = utils.forms.StringField(
-        u'Image file',
-        validators=[
-            validate_file_path,
-            ],
-        tooltip="Provide an image"
-        )
-
-    validation_record = utils.forms.SelectField(
-        'Record from validation set',
-        choices=[
-            ('none', '- select record -'),
-            ],
-        default='none',
-        tooltip="Test a record from the validation set."
-        )
-
+    snippet = utils.forms.TextAreaField(
+        u'Story/Question',
+        tooltip="Write all sentences there and end with a question"
+    )

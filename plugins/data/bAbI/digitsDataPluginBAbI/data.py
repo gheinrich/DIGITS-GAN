@@ -47,7 +47,6 @@ class DataIngestion(DataIngestionInterface):
             self.userdata['train_text_data'] = utils.parse_folder_phase(
                 self.story_folder, task_id, train=True)
             self.userdata['stats'] = utils.get_stats(self.userdata['train_text_data'])
-            print self.userdata['stats']
 
     @override
     def encode_entry(self, entry):
@@ -88,13 +87,9 @@ class DataIngestion(DataIngestionInterface):
         context = {'form': form}
         return (template, context)
 
-    #@override
-    #def get_inference_form(self):
-    #    n_val_entries = self.userdata['n_val_entries']
-    #    form = InferenceForm()
-    #    for idx, ctr in enumerate(self.userdata['contours'][:n_val_entries]):
-    #        form.validation_record.choices.append((str(idx), ctr.case))
-    #    return form
+    @override
+    def get_inference_form(self):
+        return InferenceForm()
 
     @staticmethod
     @override
@@ -120,6 +115,8 @@ class DataIngestion(DataIngestionInterface):
             elif stage == constants.VAL_DB:
                 entries = data[:n_val_entries]
         elif stage == constants.TEST_DB:
-            raise NotImplementedError()
+            if not bool(self.snippet):
+                raise ValueError("You must write a story and a question")
+            entries = utils.parse_lines(str(self.snippet).splitlines())
 
         return entries

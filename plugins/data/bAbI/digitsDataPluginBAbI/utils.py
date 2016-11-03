@@ -93,33 +93,43 @@ def parse_folder_phase(path, task_id, train):
 
 
 def parse_file(filename):
-    """
-    Returns a list of samples from a file where each sample is a
-    dictionary with 'story', 'question', 'answer' keys. Every key value is
-    a list of words without punctuation.
-    """
-    file_data = []
     with open(filename) as f:
-        for line in f.readlines():
-            # convert to lower case
-            line = line.lower()
-            # find line ID (new stories start with line ID = 1)
-            line_id, line = line.split(' ', 1)
-            if int(line_id) == 1:
-                story = []
-            # is this a question?
-            if '?' in line:
-                question, answer, _ = remove_punctuation(line).split('\t')
-                # add to data
-                file_data.append({
-                    'story': copy.copy(story),
-                    'question': [question.split()],
-                    'answer': [answer.split()],
-                    })
-            else:
-                story.append(remove_punctuation(line).split())
-    return file_data
+        return parse_lines(f.readlines())
 
+
+def parse_lines(lines):
+    """
+    Returns a list of samples from a collection of lines where each sample
+    is a dictionary with 'story', 'question', 'answer' keys. Every key
+    value is a list of words without punctuation.
+    """
+    data = []
+    story = []
+    print "lines are %s" % lines
+    for line in lines:
+        # convert to lower case
+        print "line is %s" % line
+        line = line.lower()
+        # find line ID (new stories start with line ID = 1)
+        line_id, line = line.split(' ', 1)
+        try:
+            line_id = int(line_id)
+        except:
+            # this isn't a like id, re-integrate into line
+            line = "%s %s" % (line_id, line)
+        # is this a question?
+        if '?' in line:
+            question, answer, _ = remove_punctuation(line).split('\t')
+            # add to data
+            data.append({
+                'story': copy.copy(story),
+                'question': [question.split()],
+                'answer': [answer.split()],
+                })
+            story = []
+        else:
+            story.append(remove_punctuation(line).split())
+    return data
 
 def remove_punctuation(s):
     return s.translate(string.maketrans("",""), string.punctuation)
