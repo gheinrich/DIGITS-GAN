@@ -502,6 +502,8 @@ class TensorflowTrainTask(TrainTask):
         os.close(temp_image_handle)
         if image.ndim < 3:
             image = image[..., np.newaxis]
+        # currently only support 8-bit pixel-like data
+        image = image.astype('uint8')
         writer = tf.python_io.TFRecordWriter(temp_image_path)
         record = tf.train.Example(features=tf.train.Features(feature={
             'height': _int64_feature(image.shape[0]),
