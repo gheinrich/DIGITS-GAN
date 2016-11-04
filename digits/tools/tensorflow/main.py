@@ -154,7 +154,7 @@ def save_timeline_trace(run_metadata, save_dir, step):
 def strip_data_from_graph_def(graph_def):
     strip_def = tf.GraphDef()
     for n0 in graph_def.node:
-        n = strip_def.node.add() 
+        n = strip_def.node.add()
         n.MergeFrom(n0)
         if n.op == 'Const':
             tensor = n.attr['value'].tensor
@@ -224,10 +224,10 @@ def print_summarylist(tags, vals):
     print_list = ''
     for i, key in enumerate(tags):
         if vals[i] == float('Inf'):
-            raise ValueError('Infinite value %s = Inf' % key) 
+            raise ValueError('Infinite value %s = Inf' % key)
         print_list = print_list + key + " = " + "{:.6f}".format(vals[i])
         if i < len(tags)-1:
-            print_list = print_list + ", " 
+            print_list = print_list + ", "
     return print_list
 
 def dump(obj):
@@ -310,9 +310,10 @@ def Inference(sess, model):
     Runs one inference (evaluation) epoch (all the files in the loader)
     """
 
+    inference_op = model.towers[0].inference
     if FLAGS.labels_list: # Classification -> assume softmax usage
         # Append a softmax op
-        model.inference = tf.nn.softmax(model.inference)
+        inference_op = tf.nn.softmax(inference_op)
 
     weight_vars = []
     activation_ops = []
@@ -330,9 +331,9 @@ def Inference(sess, model):
 
     try:
         while not model.queue_coord.should_stop():
-            keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, model.inference, [weight_vars], [activation_ops]])
+            keys, preds, [w], [a] = sess.run([model.dataloader.batch_k, inference_op, [weight_vars], [activation_ops]])
 
-            if FLAGS.visualize_inf:            
+            if FLAGS.visualize_inf:
                 save_weight_visualization(weight_vars, activation_ops, w, a)
 
             # @TODO(tzaman): error on no output?
@@ -341,7 +342,7 @@ def Inference(sess, model):
                 # We're allowing multiple predictions per image here. DIGITS doesnt support that iirc
                 logging.info('Predictions for image ' + str(model.dataloader.get_key_index(keys[i])) + ': ' + json.dumps(preds[i].tolist()))
     except tf.errors.OutOfRangeError:
-        print('Done: tf.errors.OutOfRangeError')    
+        print('Done: tf.errors.OutOfRangeError')
 
 def Validation(sess, model, current_epoch):
     """
@@ -421,7 +422,7 @@ def main(_):
             logging.info("Loading mean tensor from %s file", FLAGS.mean)
             mean_loader = tf_data.MeanLoader(FLAGS.mean, FLAGS.subtractMean, FLAGS.bitdepth)
 
-            
+
         classes = 0
         nclasses = 0
         if FLAGS.labels_list:
@@ -467,7 +468,7 @@ def main(_):
                 train_model.dataloader.setup(FLAGS.train_labels, FLAGS.shuffle, FLAGS.bitdepth, batch_size_train, FLAGS.epoch, FLAGS.seed)
                 train_model.dataloader.set_augmentation(mean_loader, aug_dict)
                 train_model.create_model(UserModel, stage_scope)
- 
+
         if FLAGS.validation_db:
             with tf.name_scope(digits.STAGE_VAL) as stage_scope:
                 val_model = Model(digits.STAGE_VAL, FLAGS.croplen, nclasses)
@@ -529,13 +530,13 @@ def main(_):
                 queue_size_op.append(n.name+':0')
 
         start = time.time() # @TODO(tzaman) - removeme
-        
+
         ## Initial Forward Validation Pass
         if FLAGS.validation_db:
             val_model.start_queue_runners(sess)
             Validation(sess, val_model, 0)
 
-        
+
         if FLAGS.train_db:
             # During training, a log output should occur at least X times per epoch or every X images, whichever lower
             train_steps_per_epoch = train_model.dataloader.get_total() / batch_size_train
@@ -601,7 +602,7 @@ def main(_):
 
                     # Start with a forward pass
                     if ((step % logging_interval_step) == 0):
-                        steps_since_log = step - step_last_log 
+                        steps_since_log = step - step_last_log
                         print_list = print_summarylist(tags, print_vals_sum/steps_since_log)
                         logging.info("Training (epoch " + str(current_epoch) + "): " + print_list)
                         print_vals_sum = 0
@@ -611,7 +612,7 @@ def main(_):
                     if FLAGS.validation_db and current_epoch >= next_validation:
                         Validation(sess, val_model, current_epoch)
                         # Find next nearest epoch value that exactly divisible by FLAGS.validation_interval:
-                        next_validation = (round(float(current_epoch)/FLAGS.validation_interval) + 1) * FLAGS.validation_interval 
+                        next_validation = (round(float(current_epoch)/FLAGS.validation_interval) + 1) * FLAGS.validation_interval
                         last_validation_epoch = current_epoch
 
                     # Saving Snapshot
@@ -619,7 +620,7 @@ def main(_):
                         save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, current_epoch, FLAGS.serving_export)
 
                         # To find next nearest epoch value that exactly divisible by FLAGS.snapshotInterval
-                        next_snapshot_save = (round(float(current_epoch)/FLAGS.snapshotInterval) + 1) * FLAGS.snapshotInterval 
+                        next_snapshot_save = (round(float(current_epoch)/FLAGS.snapshotInterval) + 1) * FLAGS.snapshotInterval
                         last_snapshot_save_epoch = current_epoch
                     writer.flush()
             except tf.errors.OutOfRangeError:
@@ -633,7 +634,7 @@ def main(_):
              # If required, perform final snapshot save
             if FLAGS.snapshotInterval > 0 and FLAGS.epoch > last_snapshot_save_epoch:
                 save_snapshot(sess, saver, FLAGS.save, snapshot_prefix, FLAGS.epoch, FLAGS.serving_export)
-        
+
         print('Training wall-time:', time.time()-start) # @TODO(tzaman) - removeme
 
         # If required, perform final Validation pass
@@ -655,4 +656,4 @@ def main(_):
         exit(0)
 
 if __name__ == '__main__':
-    tf.app.run()     
+    tf.app.run()
