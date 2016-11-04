@@ -119,7 +119,12 @@ def parse_lines(lines):
             line = "%s %s" % (line_id, line)
         # is this a question?
         if '?' in line:
-            question, answer, _ = remove_punctuation(line).split('\t')
+            items = remove_punctuation(line).split('\t')
+            question = items[0]
+            if len(items) > 1:
+                answer = items[1]
+            else:
+                answer = ''
             # add to data
             data.append({
                 'story': copy.copy(story),
