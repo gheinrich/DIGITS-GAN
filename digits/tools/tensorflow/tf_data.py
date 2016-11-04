@@ -297,7 +297,8 @@ class LoaderFactory(object):
         single_label = None
         single_label_shape = None
         if self.stage == digits.STAGE_INF:
-            single_key, single_data, single_data_shape = self.get_single_data(key_queue)
+            print(self.get_single_data(key_queue))
+            single_key, single_data, single_data_shape, _, _ = self.get_single_data(key_queue)
         else:
             single_key, single_data, single_data_shape, single_label, single_label_shape = self.get_single_data(key_queue)
 
@@ -617,7 +618,6 @@ class TFRecordsLoader(LoaderFactory):
 
     def initialize(self):
         self.float_data = False # For now only strings
-        self.keys = None # Not using keys
         self.unencoded_data_format = 'hwc'
         self.unencoded_channel_scheme = 'rgb'
         self.reader = None
@@ -631,18 +631,22 @@ class TFRecordsLoader(LoaderFactory):
         #self.db_path += '/test.tfrecords' # @TODO(tzaman) this is a hack
 
         self.shard_paths = []
-        list_db_files = self.db_path + '/list.txt'
+        list_db_files = os.path.join(self.db_path, 'list.txt')
         self.total = 0
-        with open(list_db_files) as f:
-            for line in f:
-                # Account for the relative path format in list.txt
-                shard_path = self.db_path + '/' + os.path.basename(line.strip())
-                record_iter = tf.python_io.tf_record_iterator(shard_path)
-                for r in record_iter:
-                    self.total += 1
-                if not self.total:
-                    raise ValueError('Database or shard contains no records (%s)' % (self.db_path))
-                self.shard_paths.append(shard_path)
+        if os.path.exists(list_db_files):
+            files = [os.path.join(self.db_path, f) for f in open(list_db_files,'r').read().splitlines()]
+        else:
+            files = [self.db_path]
+        print("files are %s" % repr(files))
+        for shard_path in files:
+            # Account for the relative path format in list.txt
+            record_iter = tf.python_io.tf_record_iterator(shard_path)
+            for r in record_iter:
+                self.total += 1
+            if not self.total:
+                raise ValueError('Database or shard contains no records (%s)' % (self.db_path))
+            self.shard_paths.append(shard_path)
+        self.keys = ['%s:0' % p for p in self.shard_paths]
 
         # Use last record read to extract some preliminary data that is sometimes needed or useful
         example_proto = tf.train.Example()
@@ -678,7 +682,7 @@ class TFRecordsLoader(LoaderFactory):
             key, single_data, single_data_shape, single_label, single_label_shape
         """
 
-        _, serialized_example = self.reader.read(key_queue)
+        key, serialized_example = self.reader.read(key_queue)
         features = tf.parse_single_example(
             serialized_example,
             # Defaults are not specified since both keys are required.
@@ -687,7 +691,6 @@ class TFRecordsLoader(LoaderFactory):
                 'label': tf.FixedLenFeature([], tf.int64),
             })
 
-        key = np.array([], dtype=np.int32) # @TODO: this is not dynamic
         d = features['image_raw']
         ds = np.array([self.width, self.height, self.channels], dtype=np.int32) # @TODO: this is not dynamic
         l = features['label']#l = tf.cast(features['label'], tf.int32)

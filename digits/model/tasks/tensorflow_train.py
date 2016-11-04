@@ -18,8 +18,10 @@ import digits
 from digits import utils
 from digits.config import config_value
 from digits.utils import subclass, override, constants
+import tensorflow as tf
 
 # Must import after importing digit.config
+import caffe
 import caffe_pb2
 
 # NOTE: Increment this everytime the pickled object changes
@@ -29,6 +31,13 @@ PICKLE_VERSION = 1
 TENSORFLOW_MODEL_FILE = 'network.py'
 TENSORFLOW_SNAPSHOT_PREFIX = 'snapshot'
 TIMELINE_PREFIX = 'timeline'
+
+def _int64_feature(value):
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=[value]))
+
+
+def _bytes_feature(value):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[value]))
 
 def subprocess_visible_devices(gpus):
     """
@@ -131,7 +140,7 @@ class TensorflowTrainTask(TrainTask):
 
     @override
     def task_arguments(self, resources, env):
-                
+
         args = [config_value('tensorflow')['executable'],
                 os.path.join(os.path.dirname(os.path.abspath(digits.__file__)),'tools', 'tensorflow', 'main.py'),
                 '--network=%s' % self.model_file,
@@ -489,15 +498,20 @@ class TensorflowTrainTask(TrainTask):
         snapshot_epoch -- which snapshot to use
         layers -- which layer activation[s] and weight[s] to visualize
         """
-        temp_image_handle, temp_image_path = tempfile.mkstemp(suffix='.png')
+        temp_image_handle, temp_image_path = tempfile.mkstemp(suffix='.tfrecords')
         os.close(temp_image_handle)
-        image = PIL.Image.fromarray(image)
-        try:
-            image.save(temp_image_path, format='png')
-        except KeyError:
-            error_message = 'Unable to save file to "%s"' % temp_image_path
-            self.logger.error(error_message)
-            raise digits.inference.errors.InferenceError(error_message)
+        if image.ndim < 3:
+            image = image[..., np.newaxis]
+        writer = tf.python_io.TFRecordWriter(temp_image_path)
+        record = tf.train.Example(features=tf.train.Features(feature={
+            'height': _int64_feature(image.shape[0]),
+            'width': _int64_feature(image.shape[1]),
+            'depth': _int64_feature(image.shape[2]),
+            'image_raw': _bytes_feature(image.tostring()),
+            'label': _int64_feature(0),
+            'encoding': _int64_feature(0)}))
+        writer.write(record.SerializeToString())
+        writer.close()
 
         file_to_load = self.get_snapshot(snapshot_epoch)
 
