@@ -792,22 +792,28 @@ class TensorflowTrainTask(TrainTask):
 
         # create a temporary folder to store images and a temporary file
         # to store a list of paths to the images
-        temp_dir_path = tempfile.mkdtemp()
+        temp_dir_path = tempfile.mkdtemp(suffix='.tfrecords')
         try: # this try...finally clause is used to clean up the temp directory in any case
-            temp_imglist_handle, temp_imglist_path = tempfile.mkstemp(dir=temp_dir_path, suffix='.txt')
-            for image in images:
-                temp_image_handle, temp_image_path = tempfile.mkstemp(
-                        dir=temp_dir_path, suffix='.png')
-                image = PIL.Image.fromarray(image)
-                try:
-                    image.save(temp_image_path, format='png')
-                except KeyError:
-                    error_message = 'Unable to save file to "%s"' % temp_image_path
-                    self.logger.error(error_message)
-                    raise digits.inference.errors.InferenceError(error_message)
-                os.write(temp_imglist_handle, "%s\n" % temp_image_path)
-                os.close(temp_image_handle)
-            os.close(temp_imglist_handle)
+            with open(os.path.join(temp_dir_path, 'list.txt'), 'w') as imglist_file:
+                for image in images:
+                    if image.ndim < 3:
+                        image = image[..., np.newaxis]
+                    # currently only support 8-bit pixel-like data
+                    image = image.astype('uint8')
+                    temp_image_handle, temp_image_path = tempfile.mkstemp(
+                            dir=temp_dir_path, suffix='.tfrecords')
+                    writer = tf.python_io.TFRecordWriter(temp_image_path)
+                    record = tf.train.Example(features=tf.train.Features(feature={
+                        'height': _int64_feature(image.shape[0]),
+                        'width': _int64_feature(image.shape[1]),
+                        'depth': _int64_feature(image.shape[2]),
+                        'image_raw': _bytes_feature(image.tostring()),
+                        'label': _int64_feature(0),
+                        'encoding': _int64_feature(0)}))
+                    writer.write(record.SerializeToString())
+                    writer.close()
+                    imglist_file.write("%s\n" % temp_image_path)
+                    os.close(temp_image_handle)
 
             file_to_load = self.get_snapshot(snapshot_epoch)
 
@@ -815,7 +821,7 @@ class TensorflowTrainTask(TrainTask):
                     os.path.join(os.path.dirname(os.path.abspath(digits.__file__)),'tools', 'tensorflow', 'main.py'),
                     '--testMany=1',
                     '--allPredictions=1',   #all predictions are grabbed and formatted as required by DIGITS
-                    '--inference_db=%s' % str(temp_imglist_path),
+                    '--inference_db=%s' % str(temp_dir_path),
                     '--network=%s' % self.model_file,
                     '--networkDirectory=%s' % self.job_dir,
                     '--weights=%s' % file_to_load,

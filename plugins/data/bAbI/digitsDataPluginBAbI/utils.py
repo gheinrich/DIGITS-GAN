@@ -25,7 +25,8 @@ def encode_field(field, word_map, sentence_size, story_size):
             try:
                 idx = word_map[word]
             except:
-                raise ValueError("Unknown word: %s" % word)
+                # assign to last index
+                idx = len(word_map) + 1
             x[i, j] = idx
     return x
 
@@ -104,17 +105,20 @@ def parse_lines(lines):
     value is a list of words without punctuation.
     """
     data = []
-    story = []
     print "lines are %s" % lines
+    story = None
     for line in lines:
         # convert to lower case
-        print "line is %s" % line
         line = line.lower()
         # find line ID (new stories start with line ID = 1)
         line_id, line = line.split(' ', 1)
         try:
-            line_id = int(line_id)
+            if int(line_id) == 1:
+                # new story
+                story = []
         except:
+            if not story:
+                story = []
             # this isn't a like id, re-integrate into line
             line = "%s %s" % (line_id, line)
         # is this a question?
@@ -131,7 +135,6 @@ def parse_lines(lines):
                 'question': [question.split()],
                 'answer': [answer.split()],
                 })
-            story = []
         else:
             story.append(remove_punctuation(line).split())
     return data

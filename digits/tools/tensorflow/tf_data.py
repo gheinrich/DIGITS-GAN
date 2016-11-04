@@ -183,6 +183,7 @@ class LoaderFactory(object):
         Returns the correct backend.
         """
         backend = get_backend_of_source(db_path)
+        print('dbpath is %s backend is %s ' % (db_path,backend))
         loader = None
         if backend == 'lmdb':
             loader = LmdbLoader()
@@ -268,7 +269,9 @@ class LoaderFactory(object):
                     data = digits.bgr_to_rgb(data)
 
             # Convert to float
-            data = tf.image.convert_image_dtype(data, tf.float32) # Converts to [0:1) range
+            #data = tf.image.convert_image_dtype(data, tf.float32) # Converts to [0:1) range
+            ##### HACK for non-image data ####
+            data = tf.to_float(data)
         return data
 
     def create_input_pipeline(self):
@@ -327,7 +330,7 @@ class LoaderFactory(object):
                     single_data = tf.image.resize_image_with_crop_or_pad(single_data, self.croplen, self.croplen)
 
         # Data Augmentation
-        if None: # self.aug_dict:
+        if self.aug_dict:
             with tf.name_scope('augmentation'):
                 flipflag = self.aug_dict['aug_flip']
                 if  flipflag == 'fliplr' or flipflag == 'fliplrud':
