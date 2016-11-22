@@ -253,11 +253,9 @@ layer {
   }
   convolution_param {
     num_output: 21
-    group: 21
     bias_term: false
     kernel_size: 63
     stride: 32
-    weight_filler: { type: "bilinear" }
   }
 }
 layer {
