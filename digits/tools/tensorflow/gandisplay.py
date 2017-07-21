@@ -191,6 +191,10 @@ class TestFrame(wx.Frame):
         vbox.Add(slider_text, 0, wx.ALIGN_CENTRE)
         vbox.Add(self.speed_slider, 0, wx.ALIGN_CENTRE)
 
+        genders = ['Male', 'Female']
+        self.gender_box = wx.RadioBox(panel, label='Gender', choices=genders, majorDimension=1, style=wx.RA_SPECIFY_ROWS)
+        vbox.Add(self.gender_box, 0, wx.ALIGN_CENTRE)
+
         self.attribute_sliders = []
         for attribute in attributes:
             slider_text = wx.StaticText(panel, label=attribute)
@@ -251,6 +255,9 @@ class DemoApp(wx.App):
     def DisplayCell(self, array):
         evt = MyEvent(myEVT, -1, array)
         wx.PostEvent(self.frame, evt)
+
+    def GetGender(self):
+        return self.frame.gender_box.GetStringSelection()
 
     def GetSpeed(self):
         return self.frame.speed_slider.GetValue()
