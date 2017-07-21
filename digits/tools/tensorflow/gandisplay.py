@@ -204,6 +204,10 @@ class TestFrame(wx.Frame):
             vbox.Add(slider, 0, wx.ALIGN_CENTRE)
             self.attribute_sliders.append(slider)
 
+        self.reset_button = wx.Button(panel, -1, "Reset")
+        vbox.Add(self.reset_button, 0, wx.ALIGN_CENTRE)
+        self.reset_button.Bind(wx.EVT_BUTTON,self.OnClicked)
+
         hbox.Add(vbox, 0, wx.ALIGN_RIGHT)
         panel.SetSizer(hbox)
 
@@ -224,6 +228,11 @@ class TestFrame(wx.Frame):
         self.Fit()
 
         self.Bind(DISPLAY_GRID_EVT, self.OnDisplayCell)
+
+    def OnClicked(self, event):
+        self.speed_slider.SetValue(5)
+        for s in self.attribute_sliders:
+            s.SetValue(0)
 
     def OnQuit(self,event):
         self.Close(True)
