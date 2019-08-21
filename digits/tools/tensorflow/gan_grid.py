@@ -67,10 +67,12 @@ CELEBA_ALL_ATTRIBUTES = """
                         """.split()
 
 CELEBA_EDITABLE_ATTRIBUTES = [
-    'Bald', 'Black_Hair', 'Blond_Hair', 'Eyeglasses', 'Male', 'Mustache', 'Smiling', 'Young', 'Attractive', 'Pale_Skin', 'Big_Nose'
+    'Bald', 'Black_Hair', 'Blond_Hair', 'Eyeglasses', 'Mustache', 'Smiling', 'Young', 'Attractive', 'Pale_Skin', 'Big_Nose'
 ]
 
 CELEBA_EDITABLE_ATTRIBUTES_IDS = [CELEBA_ALL_ATTRIBUTES.index(attr) for attr in CELEBA_EDITABLE_ATTRIBUTES]
+
+GENDER_ATTRIBUTE_ID = CELEBA_ALL_ATTRIBUTES.index('Male')
 
 
 logging.basicConfig(format='%(asctime)s [%(levelname)s] %(message)s',
@@ -385,6 +387,14 @@ def Inference(sess, model):
 
             for idx, attr_scale in enumerate(attributes):
                 z += (attr_scale / 25. ) * attribute_zs[CELEBA_EDITABLE_ATTRIBUTES_IDS[idx]]
+
+            # gender
+            gender = app.GetGender()
+            if gender == 'Male':
+                gender_attr = 1.
+            else:
+                gender_attr = -1.
+            z += gender_attr * attribute_zs[GENDER_ATTRIBUTE_ID]
 
             feed_dict = {model.time_placeholder: float(t),
                          model.attribute_placeholder: z}

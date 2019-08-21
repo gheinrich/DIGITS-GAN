@@ -2,6 +2,7 @@ import wxversion
 
 import wx
 import numpy as np
+import os
 import random
 import time
 
@@ -191,6 +192,10 @@ class TestFrame(wx.Frame):
         vbox.Add(slider_text, 0, wx.ALIGN_CENTRE)
         vbox.Add(self.speed_slider, 0, wx.ALIGN_CENTRE)
 
+        genders = ['Male', 'Female']
+        self.gender_box = wx.RadioBox(panel, label='Gender', choices=genders, majorDimension=1, style=wx.RA_SPECIFY_ROWS)
+        vbox.Add(self.gender_box, 0, wx.ALIGN_CENTRE)
+
         self.attribute_sliders = []
         for attribute in attributes:
             slider_text = wx.StaticText(panel, label=attribute)
@@ -199,6 +204,17 @@ class TestFrame(wx.Frame):
             vbox.Add(slider_text, 0, wx.ALIGN_CENTRE)
             vbox.Add(slider, 0, wx.ALIGN_CENTRE)
             self.attribute_sliders.append(slider)
+
+        self.reset_button = wx.Button(panel, -1, "Reset")
+        vbox.Add(self.reset_button, 0, wx.ALIGN_CENTRE)
+        self.reset_button.Bind(wx.EVT_BUTTON,self.OnClicked)
+
+        # add Nvidia logo
+        imageFile = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'nvidia-logo.png')
+        png = wx.Image(imageFile, wx.BITMAP_TYPE_ANY)
+        png = png.Scale(200, 40, wx.IMAGE_QUALITY_HIGH).ConvertToBitmap()
+        im = wx.StaticBitmap(panel, -1, png)
+        vbox.Add(im, 0, wx.ALL, 5)
 
         hbox.Add(vbox, 0, wx.ALIGN_RIGHT)
         panel.SetSizer(hbox)
@@ -220,6 +236,11 @@ class TestFrame(wx.Frame):
         self.Fit()
 
         self.Bind(DISPLAY_GRID_EVT, self.OnDisplayCell)
+
+    def OnClicked(self, event):
+        self.speed_slider.SetValue(5)
+        for s in self.attribute_sliders:
+            s.SetValue(0)
 
     def OnQuit(self,event):
         self.Close(True)
@@ -251,6 +272,9 @@ class DemoApp(wx.App):
     def DisplayCell(self, array):
         evt = MyEvent(myEVT, -1, array)
         wx.PostEvent(self.frame, evt)
+
+    def GetGender(self):
+        return self.frame.gender_box.GetStringSelection()
 
     def GetSpeed(self):
         return self.frame.speed_slider.GetValue()
